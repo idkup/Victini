@@ -2,6 +2,7 @@ from DraftParticipant import DraftParticipant
 from DraftPokemon import DraftPokemon
 from Tier import Tier
 import json
+import pickle
 import random
 
 
@@ -42,6 +43,12 @@ class DraftLeague:
     def next_phase(self):
         """Increments the phase by 1."""
         self._phase += 1
+
+    def save(self):
+        """Pickles and saves the league in a text file."""
+        with open('files/league.txt', 'wb+') as file:
+            pickle.dump(self, file)
+            file.close()
 
     def shuffle(self):
         """Shuffles the order of the participants."""
