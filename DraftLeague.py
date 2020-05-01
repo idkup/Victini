@@ -1,6 +1,7 @@
 from DraftParticipant import DraftParticipant
 from DraftPokemon import DraftPokemon
 from Tier import Tier
+import datetime
 import json
 import pickle
 import random
@@ -11,7 +12,6 @@ class DraftLeague:
     def __init__(self):
         """Initializes the Draft League and tiers Pokemon."""
         self._participants = []
-        self._discordlist = []
         self._missedpicks = []
         self._phase = 0
         self._picking = None
@@ -28,9 +28,26 @@ class DraftLeague:
         self._mt2_list = [DraftPokemon(x, Tier.MT2) for x in d['102']]
         self._mt3_list = [DraftPokemon(x, Tier.MT3) for x in d['103']]
 
+    def add_missed_pick(self, user: DraftParticipant):
+        """Adds a missed pick tor a user."""
+        self._missedpicks.append(user)
+
     def add_participant(self, user: DraftParticipant):
         """Adds a DraftParticipant object to _participants."""
         self._participants.append(user)
+
+    def draft(self, user: DraftParticipant, mon: DraftPokemon) -> bool:
+        """Handling for adding Pokemon to a user across all phases of the draft.
+        Returns True if successful, False if not."""
+        if self._phase == 0 or self._phase >= 3:
+            return False
+        elif self._phase == 2:
+            return user.set_mon(mon)
+        elif self._phase == 1:
+            if user.set_mon(mon) is True:
+                self.next_pick()
+                return True
+            return False
 
     def get_participants(self) -> list:
         """Returns the list of participants."""
@@ -44,11 +61,23 @@ class DraftLeague:
         """Increments the phase by 1."""
         self._phase += 1
 
+    def next_pick(self):
+        """Moves the draft to the next pick."""
+        if len(self._pickorder) == 0:
+            return
+        self._picking[0] += 1
+        self._picking[1] = datetime.datetime.now().replace(microsecond=0)
+
     def save(self):
         """Pickles and saves the league in a text file."""
         with open('files/league.txt', 'wb+') as file:
             pickle.dump(self, file)
             file.close()
+
+    def set_pick_order(self):
+        """Sets the pick order for the draft."""
+        self._pickorder = 5 * (self._participants + self._participants[::-1])
+        self._picking = (0, datetime.datetime.now().replace(microsecond=0))
 
     def shuffle(self):
         """Shuffles the order of the participants."""
