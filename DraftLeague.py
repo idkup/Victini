@@ -39,6 +39,8 @@ class DraftLeague:
     def draft(self, user: DraftParticipant, mon: DraftPokemon) -> bool:
         """Handling for adding Pokemon to a user across all phases of the draft.
         Returns True if successful, False if not."""
+        if mon.get_owner() is not None:
+            return False
         if self._phase == 0 or self._phase >= 3:
             return False
         elif self._phase == 2:
