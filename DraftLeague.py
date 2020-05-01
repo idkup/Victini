@@ -2,6 +2,7 @@ from DraftParticipant import DraftParticipant
 from DraftPokemon import DraftPokemon
 from Tier import Tier
 import json
+import random
 
 
 class DraftLeague:
@@ -25,5 +26,24 @@ class DraftLeague:
         self._mt1_list = [DraftPokemon(x, Tier.MT1) for x in d['101']]
         self._mt2_list = [DraftPokemon(x, Tier.MT2) for x in d['102']]
         self._mt3_list = [DraftPokemon(x, Tier.MT3) for x in d['103']]
-d = DraftLeague()
-print(d._t1_list)
+
+    def add_participant(self, user: DraftParticipant):
+        """Adds a DraftParticipant object to _participants."""
+        self._participants.append(user)
+
+    def get_participants(self) -> list:
+        """Returns the list of participants."""
+        return self._participants
+
+    def get_phase(self) -> int:
+        """Returns the current phase."""
+        return self._phase
+
+    def next_phase(self):
+        """Increments the phase by 1."""
+        self._phase += 1
+
+    def shuffle(self):
+        """Shuffles the order of the participants."""
+        if self._phase == 0:
+            random.shuffle(self._participants)
