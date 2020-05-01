@@ -35,6 +35,6 @@ class DraftPokemon:
         """Returns self._tier."""
         return self._tier
 
-    def set_owner(self, owner=None):
-        """Returns self._owner."""
+    def set_owner(self, owner):
+        """Sets self._owner."""
         self._owner = owner
