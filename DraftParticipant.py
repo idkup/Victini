@@ -30,7 +30,7 @@ class DraftParticipant:
         T4: {}
         T5: {}
         Flex: {}""".format(self._name, self._points, self._mega, self._tier1, self._tier2, self._tier3,
-                           self._tier4, self._tier5, ", ".join(self._free))
+                           self._tier4, self._tier5, ", ".join([str(x) for x in self._free]))
 
     def add_points(self, points: int):
         """Adds points to a participant."""
