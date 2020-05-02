@@ -88,6 +88,10 @@ class DraftLeague:
                 return True
             return False
 
+    def get_missed_picks(self) -> list:
+        """Returns the list of missed draft picks."""
+        return self._missedpicks
+
     def get_participants(self) -> list:
         """Returns the list of participants."""
         return self._participants

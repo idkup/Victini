@@ -1,4 +1,7 @@
+from DraftLeague import DraftLeague
+from DraftParticipant import DraftParticipant
 from discord.ext import commands
+
 with open('files/key.txt') as key_file:
     KEY = key_file.readline()
     key_file.close()
