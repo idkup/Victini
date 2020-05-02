@@ -36,6 +36,43 @@ class DraftLeague:
         """Adds a DraftParticipant object to _participants."""
         self._participants.append(user)
 
+    def available_pokemon(self, tier: Tier) -> list:
+        """Returns a list of the available Pokemon in the given tier."""
+        mon_list = []
+        if tier == Tier.T1:
+            for m in self._t1_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.T2:
+            for m in self._t2_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.T3:
+            for m in self._t3_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.T4:
+            for m in self._t4_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.T5:
+            for m in self._t5_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.MT1:
+            for m in self._mt1_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.MT2:
+            for m in self._mt2_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        elif tier == Tier.MT3:
+            for m in self._mt3_list:
+                if m.get_owner() is None:
+                    mon_list.append(m)
+        return mon_list
+
     def draft(self, user: DraftParticipant, mon: DraftPokemon) -> bool:
         """Handling for adding Pokemon to a user across all phases of the draft.
         Returns True if successful, False if not."""
@@ -51,9 +88,18 @@ class DraftLeague:
                 return True
             return False
 
+    def get_missed_picks(self) -> list:
+        """Returns the list of missed draft picks."""
+        return self._missedpicks
+
     def get_participants(self) -> list:
         """Returns the list of participants."""
         return self._participants
+
+    def get_picking(self) -> (int, datetime):
+        """During the draft phase, returns the current pick and the time it became current."""
+        if self._phase == 1:
+            return self._picking
 
     def get_phase(self) -> int:
         """Returns the current phase."""
@@ -85,3 +131,4 @@ class DraftLeague:
         """Shuffles the order of the participants."""
         if self._phase == 0:
             random.shuffle(self._participants)
+
