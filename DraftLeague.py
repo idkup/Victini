@@ -5,10 +5,12 @@ import datetime
 import json
 import pickle
 import random
+from typing import Union
 
 
 class DraftLeague:
     """Represents a Draft League."""
+
     def __init__(self):
         """Initializes the Draft League and tiers Pokemon."""
         self._participants = []
@@ -27,6 +29,8 @@ class DraftLeague:
         self._mt1_list = [DraftPokemon(x, Tier.MT1) for x in d['101']]
         self._mt2_list = [DraftPokemon(x, Tier.MT2) for x in d['102']]
         self._mt3_list = [DraftPokemon(x, Tier.MT3) for x in d['103']]
+        self._all_mons_list = self._t1_list + self._t2_list + self._t3_list + self._t4_list + self._t5_list + \
+            self._mt1_list + self._mt2_list + self._mt3_list
 
     def add_missed_pick(self, user: DraftParticipant):
         """Adds a missed pick tor a user."""
@@ -88,6 +92,10 @@ class DraftLeague:
                 return True
             return False
 
+    def get_all_pokemon(self) -> list:
+        """Returns the list of all Pokemon in the league."""
+        return self._all_mons_list
+
     def get_missed_picks(self) -> list:
         """Returns the list of missed draft picks."""
         return self._missedpicks
@@ -104,6 +112,13 @@ class DraftLeague:
     def get_phase(self) -> int:
         """Returns the current phase."""
         return self._phase
+
+    def get_user(self, name) -> Union[DraftParticipant, bool]:
+        for p in self._participants:
+            if p.get_name().lower() == name.lower():
+                return p
+        else:
+            return False
 
     def next_phase(self):
         """Increments the phase by 1."""
@@ -122,6 +137,10 @@ class DraftLeague:
             pickle.dump(self, file)
             file.close()
 
+    def set_phase(self, phase: int):
+        """Sets the phase of the draft. DEBUG ONLY."""
+        self._phase = phase
+
     def set_pick_order(self):
         """Sets the pick order for the draft."""
         self._pickorder = 5 * (self._participants + self._participants[::-1])
@@ -131,4 +150,3 @@ class DraftLeague:
         """Shuffles the order of the participants."""
         if self._phase == 0:
             random.shuffle(self._participants)
-

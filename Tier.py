@@ -1,8 +1,9 @@
-from enum import Enum
+from aenum import Enum, NoAlias
 
 
 class Tier(Enum):
     """Reference for tier values."""
+    _settings_ = NoAlias
     T1 = 180
     T2 = 120
     T3 = 100
