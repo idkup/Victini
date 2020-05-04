@@ -5,6 +5,8 @@ class api:
         self._username = username
         self._key = key
         self._tournamentId = 0
+        self._tournamentName = ""
+        self._tournamentType = ""
         self._url = ""
         self._apiUrl = "https://{}:{}@api.challonge.com/v1/".format(username, key)
 
@@ -26,6 +28,18 @@ class api:
     def getUrl(self):
         return "https://challonge.com/{}".format(self._url)
 
+    def setName(self, name):
+        self._tournamentName = name
+
+    def getName(self):
+        return self._tournamentName
+
+    def setType(self, type):
+        self._tournamentType = type
+
+    def getType(self):
+        return self._tournamentType
+
     def byteToObj(self, bytesData):
         dict_str = bytesData.decode("UTF-8").replace("\'", "\"")
         data = json.loads(dict_str)
@@ -35,7 +49,8 @@ class api:
         if self._tournamentId != 0:
             return False
         res = requests.post(self._apiUrl + "tournaments.json", {"tournament[name]": name, "tournament[tournament_type]": type, "tournament[url]": url})
-        print(res.content)
+        self.setName(name)
+        self.setType(type)
         self.setUrl(url)
         self.setId(int(self.byteToObj(res.content)["tournament"]["id"]))
         return True
@@ -45,11 +60,32 @@ class api:
             return False
         return True
 
-    def update(self):
+    def update_name(self, name):
         if not self.check_id():
             return False
         try:
-            requests.put(self._apiUrl + "tournaments/{}.json".format(self.getId()))
+            requests.put(self._apiUrl + "tournaments/{}.json".format(self.getId()), {"tournament[name]": name})
+            self.setName(name)
+            return True
+        except requests.exceptions.RequestException:
+            return False
+
+    def update_url(self, url):
+        if not self.check_id():
+            return False
+        try:
+            requests.put(self._apiUrl + "tournaments/{}.json".format(self.getId()), {"tournament[url]": url})
+            self.setUrl(url)
+            return True
+        except requests.exceptions.RequestException:
+            return False
+
+    def update_type(self, type):
+        if not self.check_id():
+            return False
+        try:
+            requests.put(self._apiUrl + "tournaments/{}.json".format(self.getId()), {"tournament[tournament_type]": type})
+            self.setType(type)
             return True
         except requests.exceptions.RequestException:
             return False
@@ -123,7 +159,7 @@ class api:
         try:
             if name in self.get_participants().keys():
                 return False
-            requests.post(self._apiUrl + "tournaments/{}/participants.json".format(self.getId()), {"name": name, "challonge_username": challonge_name})
+            requests.post(self._apiUrl + "tournaments/{}/participants.json".format(self.getId()), {"participant[name]": name, "participant[challonge_username]": challonge_name})
             return True
         except requests.exceptions.RequestException:
             return False
@@ -152,12 +188,12 @@ class api:
         except requests.exceptions.RequestException:
             return False
 
-    def update_participant_name(self, oldName, newName):
+    def update_participant_name(self, username, newName):
         if not self.check_id():
             return False
-        id = self.get_participant_id(oldName)
+        id = self.get_participant_id(username)
         try:
-            requests.put(self._apiUrl + "tournaments/{}/participants/{}.json".format(self.getId(), id), {"name": newName})
+            requests.put(self._apiUrl + "tournaments/{}/participants/{}.json".format(self.getId(), id), {"participant[name]": newName})
             return True
         except requests.exceptions.RequestException:
             return False
@@ -167,7 +203,7 @@ class api:
             return False
         id = self.get_participant_id(username)
         try:
-            requests.put(self._apiUrl + "tournaments/{}/participants/{}.json".format(self.getId(), id), {"challonge_username": newName})
+            requests.put(self._apiUrl + "tournaments/{}/participants/{}.json".format(self.getId(), id), {"participant[challonge_username]": newName})
             return True
         except requests.exceptions.RequestException:
             return False
@@ -236,7 +272,7 @@ class api:
         if not self.check_id():
             return False
         try:
-            requests.put(self._apiUrl + "tournaments/{}/macthes/{}.json".format(self.getId(), id), {"scores_csv": scores, "winner_id": self.get_participant_id(winner)})
+            requests.put(self._apiUrl + "tournaments/{}/macthes/{}.json".format(self.getId(), id), {"match[scores_csv]": scores, "match[winner_id]": self.get_participant_id(winner)})
             return True
         except requests.exceptions.RequestException:
             return False
