@@ -22,14 +22,14 @@ class DraftParticipant:
     def __str__(self):
         """Behavior when stringified."""
         return """{}'s Draft ({} points remaining):
-        ---
-        Mega: {}
-        T1: {}
-        T2: {}
-        T3: {}
-        T4: {}
-        T5: {}
-        Flex: {}""".format(self._name, self._points, self._mega, self._tier1, self._tier2, self._tier3,
+---
+Mega: {}
+T1: {}
+T2: {}
+T3: {}
+T4: {}
+T5: {}
+Flex: {}""".format(self._name, self._points, self._mega, self._tier1, self._tier2, self._tier3,
                            self._tier4, self._tier5, ", ".join([str(x) for x in self._free]))
 
     def add_points(self, points: int):
@@ -113,6 +113,7 @@ class DraftParticipant:
         """Adds a Pokemon to a participant, and charges points if applicable.
         Returns True if successful, False if not."""
         tier = mon.get_tier()
+        print(tier)
         if tier in [Tier.MT1, Tier.MT2, Tier.MT3]:
             if not self._mega and self._points >= tier.value:
                 self._points -= tier.value
@@ -141,7 +142,7 @@ class DraftParticipant:
                 self._tier4 = mon
                 mon.set_owner(self)
                 return True
-        else:
+        elif tier == Tier.T5:
             if not self._tier5:
                 self._tier5 = mon
                 mon.set_owner(self)
