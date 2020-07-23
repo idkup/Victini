@@ -6,7 +6,7 @@ import discord
 import pickle
 
 admin_ids = [590336288935378950]
-bot = commands.Bot(command_prefix='_')
+bot = commands.Bot(command_prefix='!')
 
 
 @bot.command()
@@ -35,6 +35,15 @@ async def debug_phase(ctx, l_id, phase="0"):
         return await ctx.send("Invalid league ID.")
     league.set_phase(int(phase))
     return await ctx.send("Phase of league {} set to {}".format(league.get_id(), league.get_phase()))
+
+
+@bot.command()
+async def debug_leagues(ctx):
+    """Prints all leagues with their current phase."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    await ctx.send("Current leagues: \n{}".format("\n".join(["ID: {} Phase: {}".format(
+        l.get_id(), l.get_phase()) for l in leagues])))
 
 
 @bot.command()
@@ -119,6 +128,7 @@ async def info(ctx, l_id, *args):
 
 @bot.command()
 async def init(ctx, l_id, tierlist):
+    """Starts a new DraftLeague()."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     try:
@@ -150,7 +160,7 @@ async def participants(ctx, l_id):
 
 @bot.command()
 async def register(ctx):
-    """Registers the user to the DraftLeague as a DraftParticipant."""
+    """Registers the user to a DraftLeague as a DraftParticipant."""
     for l in leagues:
         if l.get_channel() == ctx.channel.id:
             league = l
@@ -163,7 +173,11 @@ async def register(ctx):
         if x.get_discord() == ctx.author.id:
             return await ctx.send("You are already registered!")
     league.add_participant(DraftParticipant(league, ctx.author.id, ctx.author.name))
-    return await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
+    await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+        f.close()
+    await ctx.send("All leagues backed up.")
 
 
 @bot.command()
@@ -224,6 +238,7 @@ async def on_ready():
 
 
 async def timer():
+    """Timer for draft phase."""
     while True:
         for l in leagues:
             if l.get_phase() == 1:
@@ -242,4 +257,4 @@ try:
         backup.close()
 except FileNotFoundError:
     leagues = []
-bot.run(bot_key)
+bot.run(bot_key.strip())
