@@ -105,7 +105,7 @@ async def find(ctx, l_id, *args):
             target = mon
             break
     else:
-        return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
+        return await ctx.send("The Pokemon you are attempting to find is not recognized!")
     return await ctx.send("{}".format(league.find_mon(target)))
 
 
@@ -177,7 +177,6 @@ async def register(ctx):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
-    await ctx.send("All leagues backed up.")
 
 
 @bot.command()
@@ -228,6 +227,26 @@ async def start_draft(ctx):
     league.next_phase()
     return await ctx.send("The draft has been started! Pick order: {}".format(
         ", ".join([p.get_name() for p in league.get_participants()])))
+
+
+@bot.command()
+async def substitute(ctx, old_id, new_id, new):
+    """Wrapper for DraftParticipant.substitute()."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        if p.get_discord() == int(old_id):
+            p.substitute(new, int(new_id))
+            break
+    else:
+        return await ctx.send("The player you are attempting to substitute is not in the league.")
+    return await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
 
 
 @bot.event

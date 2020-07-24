@@ -70,7 +70,7 @@ class DraftParticipant:
         cost = mon.get_cost()
         if mon.get_owner() is not None:
             return "This Pokemon has already been drafted!"
-        if self._points - cost < 10 - len(self._pokemon) + 1:
+        if self._points - cost < 9 - len(self._pokemon):
             return "You do not have enough points to draft this Pokemon."
         if mon.is_mega():
             if self._mega:
