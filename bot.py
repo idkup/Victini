@@ -18,8 +18,12 @@ async def available(ctx, l_id, cost):
             break
     else:
         return await ctx.send("Invalid league ID.")
-    return await ctx.send("Available Pokemon with cost {}: {}".format(
-        cost, ", ".join(league.available_pokemon(int(cost)))))
+    av = league.available_pokemon(int(cost))
+    if len(av) <= 100:
+        return await ctx.send("Available Pokemon with cost {}: {}".format(cost, ", ".join(av)))
+    await ctx.send("Available Pokemon with cost {}:".format(cost))
+    for i in range(0, len(av), 100):
+        await ctx.send(", ".join(av[i:i+100]))
 
 
 @bot.command()
