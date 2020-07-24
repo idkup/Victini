@@ -230,6 +230,23 @@ async def start_draft(ctx):
 
 
 @bot.command()
+async def close_trades(ctx):
+    """Ends free agency in the identified league."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    if league.get_phase() != 2:
+        return await ctx.send("Free agency is not currently open.")
+    league.next_phase()
+    return await ctx.send("Trades are now closed in this league.")
+
+
+@bot.command()
 async def substitute(ctx, old_id, new_id, new):
     """Wrapper for DraftParticipant.substitute()."""
     if ctx.author.id not in admin_ids:
