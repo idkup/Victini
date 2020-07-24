@@ -76,6 +76,8 @@ class DraftParticipant:
             if self._mega:
                 return "You have already drafted a Mega Evolution."
             self._mega = True
+        if len(self._pokemon) >= 12:
+            return "You have already drafted 12 Pokemon."
         self._pokemon.append(mon)
         self._points -= cost
         mon.set_owner(self)
