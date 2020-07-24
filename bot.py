@@ -23,6 +23,23 @@ async def available(ctx, l_id, cost):
 
 
 @bot.command()
+async def close_trades(ctx):
+    """Ends free agency in the identified league."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    if league.get_phase() != 2:
+        return await ctx.send("Free agency is not currently open.")
+    league.next_phase()
+    return await ctx.send("Trades are now closed in this league.")
+
+
+@bot.command()
 async def debug_phase(ctx, l_id, phase="0"):
     """Sets the phase to whatever I want."""
     if ctx.author.id not in admin_ids:
@@ -138,6 +155,8 @@ async def init(ctx, l_id, tierlist):
     for league in leagues:
         if league.get_id() == l_id:
             return await ctx.send("League already exists with this ID.")
+        if league.get_channel() == ctx.channel.id:
+            return await ctx.send("Another league is using this channel as its drafting channel.")
     leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id))
     return await ctx.send("New league initialized with ID {}.".format(l_id))
 
@@ -227,23 +246,6 @@ async def start_draft(ctx):
     league.next_phase()
     return await ctx.send("The draft has been started! Pick order: {}".format(
         ", ".join([p.get_name() for p in league.get_participants()])))
-
-
-@bot.command()
-async def close_trades(ctx):
-    """Ends free agency in the identified league."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
-        return await ctx.send("Invalid league ID.")
-    if league.get_phase() != 2:
-        return await ctx.send("Free agency is not currently open.")
-    league.next_phase()
-    return await ctx.send("Trades are now closed in this league.")
 
 
 @bot.command()
