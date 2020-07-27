@@ -177,6 +177,26 @@ async def forcedraft(ctx, *args):
 
 
 @bot.command()
+async def forceregister(ctx, d_id, name):
+    """Allows an admin to register participants to a DraftLeague."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a drafting channel.")
+    if league.get_phase() != 0:
+        return await ctx.send("It is too late to register!")
+    for x in league.get_participants():
+        if x.get_discord() == d_id:
+            return await ctx.send("{} is already registered!".format(name))
+    league.add_participant(DraftParticipant(league, d_id, ctx.name))
+    await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
+
+
+@bot.command()
 async def info(ctx, l_id, *args):
     """Prints str(DraftParticipant) to Discord if possible."""
     for l in leagues:
