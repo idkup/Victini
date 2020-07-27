@@ -82,7 +82,7 @@ async def debug_participants(ctx, l_id):
         lp.append([league, p.get_discord(), p.get_name()])
     league.clear_participants()
     for p in lp:
-        league.add_participant(DraftParticipant(p[0], p[1], p[2]))
+        league.add_participant(DraftParticipant(p[0], int(p[1]), p[2]))
     await ctx.send("Participant objects rebuilt in league {}".format(l_id))
 
 
@@ -190,9 +190,9 @@ async def forceregister(ctx, d_id, name):
     if league.get_phase() != 0:
         return await ctx.send("It is too late to register!")
     for x in league.get_participants():
-        if x.get_discord() == d_id:
+        if x.get_discord() == int(d_id):
             return await ctx.send("{} is already registered!".format(name))
-    league.add_participant(DraftParticipant(league, d_id, name))
+    league.add_participant(DraftParticipant(league, int(d_id), name))
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 
@@ -361,7 +361,7 @@ async def substitute(ctx, old_id, new_id, new):
     else:
         return await ctx.send("This is not a drafting channel.")
     for p in league.get_participants():
-        if p.get_discord() == int(old_id):
+        if int(p.get_discord()) == int(old_id):
             p.substitute(new, int(new_id))
             break
     else:
