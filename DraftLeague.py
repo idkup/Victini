@@ -18,7 +18,7 @@ class DraftLeague:
         self._phase = 0
         self._picking = None
         self._pickorder = []
-        self._timer = datetime.timedelta(seconds=300)
+        self._timer = datetime.timedelta(seconds=28800)
         self._channel = channel
         with open('files/{}.json'.format(tierlist), 'r') as file:
             d = json.load(file)
