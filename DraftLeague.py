@@ -65,6 +65,10 @@ class DraftLeague:
                     current_picker.set_next_pick([])
                     return "<@{} has drafted {}!".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
 
+    def clear_participants(self):
+        """Deletes all participants. Debug use only."""
+        self._participants = []
+
     def draft(self, user: DraftParticipant, mon: DraftPokemon) -> str:
         """Handling for adding Pokemon to a user across all phases of the draft.
         Returns message to be sent."""

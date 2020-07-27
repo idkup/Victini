@@ -68,6 +68,24 @@ async def debug_leagues(ctx):
 
 
 @bot.command()
+async def debug_participants(ctx, l_id):
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    lp = []
+    for p in league.get_participants():
+        lp.append([league, p.get_discord(), p.get_name()])
+    league.clear_participants()
+    for p in lp:
+        league.add_participant(DraftParticipant(p[0], p[1], p[2]))
+
+
+@bot.command()
 async def debug_reset(ctx, l_id):
     """Wipes the league."""
     if ctx.author.id not in admin_ids:
