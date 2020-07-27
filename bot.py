@@ -192,7 +192,7 @@ async def forceregister(ctx, d_id, name):
     for x in league.get_participants():
         if x.get_discord() == d_id:
             return await ctx.send("{} is already registered!".format(name))
-    league.add_participant(DraftParticipant(league, d_id, ctx.name))
+    league.add_participant(DraftParticipant(league, d_id, name))
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 
