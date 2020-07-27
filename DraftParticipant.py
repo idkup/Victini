@@ -89,7 +89,7 @@ class DraftParticipant:
         return True
 
     def set_next_pick(self, picks: list):
-        """AModifies self._next_picks"""
+        """Modifies self._next_picks"""
         self._next_pick = picks
 
     def substitute(self, name: str, d_id: int):

@@ -83,6 +83,7 @@ async def debug_participants(ctx, l_id):
     league.clear_participants()
     for p in lp:
         league.add_participant(DraftParticipant(p[0], p[1], p[2]))
+    await ctx.send("Participant objects rebuilt in league {}".format(l_id))
 
 
 @bot.command()
@@ -162,7 +163,7 @@ async def forcedraft(ctx, *args):
     if league.get_phase() != 1:
         return await ctx.send("It is not the drafting phase!")
     name = " ".join(args)
-    picker = league.get_current_pick()[0]
+    picker = league.get_pickorder()[league.get_picking()[0]]
     for mon in league.get_all_pokemon():
         if str(mon).lower() == name.strip().lower():
             to_draft = mon
@@ -228,7 +229,7 @@ async def participants(ctx, l_id):
 
 @bot.command()
 async def predraft(ctx, l_id, key, *args):
-    """Alters the list of premade picks of a DraftParticipant. Keys: ADD, REPLACE, DELETE"""
+    """Alters the list of premade picks of a DraftParticipant. Keys: CLEAR, ADD, REPLACE, REMOVE"""
     for l in leagues:
         if l.get_id() == int(l_id):
             league = l
@@ -244,12 +245,17 @@ async def predraft(ctx, l_id, key, *args):
     if league.get_phase() != 1:
         return await ctx.send("It is not the drafting phase!")
     np = picker.get_next_pick()
+    if key.lower() == "clear":
+        picker.set_next_pick([])
+        return await ctx.send("Priority for automatic drafting cleared.")
     if key.lower() == "add":
-        picker.set_next_pick(np.append(" ".join(args)))
+        np.append(" ".join(args))
+        picker.set_next_pick(np)
     elif key.lower() == "replace":
         picker.set_next_pick([" ".join(args)])
-    elif key.lower() == "clear":
-        picker.set_next_pick([])
+    elif key.lower() == "remove":
+        np.remove(" ".join(args))
+    return await ctx.send("Priority for automatic drafting: {}".format(" ".join(picker.get_next_pick())))
 
 
 @bot.command()

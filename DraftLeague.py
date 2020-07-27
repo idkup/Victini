@@ -63,7 +63,7 @@ class DraftLeague:
                     continue
                 if current_picker.set_mon(to_draft) is True:
                     current_picker.set_next_pick([])
-                    return "<@{} has drafted {}!".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
+                    return "<@{}> has drafted {}! ".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
 
     def clear_participants(self):
         """Deletes all participants. Debug use only."""
@@ -104,10 +104,6 @@ class DraftLeague:
         """Returns the Discord channel for the draft of this league."""
         return self._channel
 
-    def get_current_pick(self) -> Union[None, list]:
-        """Returns the current pick."""
-        return self._picking
-
     def get_id(self) -> int:
         """Returns the league ID."""
         return self._league_id
@@ -124,6 +120,10 @@ class DraftLeague:
         """During the draft phase, returns the current pick and the time it became current."""
         if self._phase == 1:
             return self._picking
+
+    def get_pickorder(self) -> list:
+        """Returns the pick order."""
+        return self._pickorder
 
     def get_phase(self) -> int:
         """Returns the current phase."""
