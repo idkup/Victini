@@ -98,7 +98,7 @@ async def draft(ctx, *args):
             picker = p
             break
     else:
-        return await ctx.send("You are not in the draft!")
+        return await ctx.send("You are not in this draft!")
     for mon in league.get_all_pokemon():
         if str(mon).lower() == name.strip().lower():
             to_draft = mon
@@ -128,6 +128,33 @@ async def find(ctx, l_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to find is not recognized!")
     return await ctx.send("{}".format(league.find_mon(target)))
+
+
+@bot.command()
+async def forcedraft(ctx, *args):
+    """Admin command to draft for an AFK player."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a drafting channel.")
+    if league.get_phase() != 1:
+        return await ctx.send("It is not the drafting phase!")
+    name = " ".join(args)
+    picker = league.get_current_pick()[0]
+    for mon in league.get_all_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_draft = mon
+            break
+    else:
+        return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
+    await ctx.send(league.draft(picker, to_draft))
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+        f.close()
 
 
 @bot.command()
@@ -179,6 +206,32 @@ async def participants(ctx, l_id):
         return await ctx.send("No participants yet!")
     else:
         return await ctx.send("Participants ({}): {}".format(len(pl), ", ".join(pl)))
+
+
+@bot.command()
+async def predraft(ctx, l_id, key, *args):
+    """Alters the list of premade picks of a DraftParticipant. Keys: ADD, REPLACE, DELETE"""
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        if p.get_discord() == ctx.author.id:
+            picker = p
+            break
+    else:
+        return await ctx.send("You are not in this draft!")
+    if league.get_phase() != 1:
+        return await ctx.send("It is not the drafting phase!")
+    np = picker.get_next_pick()
+    if key.lower() == "add":
+        picker.set_next_pick(np.append(" ".join(args)))
+    elif key.lower() == "replace":
+        picker.set_next_pick([" ".join(args)])
+    elif key.lower() == "clear":
+        picker.set_next_pick([])
 
 
 @bot.command()
@@ -262,7 +315,7 @@ async def substitute(ctx, old_id, new_id, new):
             league = l
             break
     else:
-        return await ctx.send("Invalid league ID.")
+        return await ctx.send("This is not a drafting channel.")
     for p in league.get_participants():
         if p.get_discord() == int(old_id):
             p.substitute(new, int(new_id))

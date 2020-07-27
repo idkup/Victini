@@ -44,15 +44,26 @@ class DraftLeague:
     def check_pick_deadline(self) -> str:
         """Checks if the current picker has run out of time, calls add_missed_pick() and next_pick() if so.
         Returns message to be sent."""
+        current_picker = self._pickorder[self._picking[0]]
         if self._phase != 1:
             return "It is no longer the drafting phase."
         if datetime.datetime.now() - self._picking[1] > self._timer:
-            self.add_missed_pick(self._pickorder[self._picking[0]])
+            self.add_missed_pick(current_picker)
             return "<@{}> has missed their pick! ".format(
-                self._pickorder[self._picking[0]].get_discord()) + self.next_pick()
-        elif self._pickorder[self._picking[0]].get_points() == 0:
-            return "{} has used all their points. ".format(
-                self._pickorder[self._picking[0]].get_name()) + self.next_pick()
+                current_picker.get_discord()) + self.next_pick()
+        elif current_picker.get_points() == 0:
+            return "{} has used all their points. ".format(current_picker.get_name()) + self.next_pick()
+        elif current_picker.get_next_pick():
+            for p in current_picker.get_next_pick():
+                for mon in self.get_all_pokemon():
+                    if str(mon).lower() == p.strip().lower():
+                        to_draft = mon
+                        break
+                else:
+                    continue
+                if current_picker.set_mon(to_draft) is True:
+                    current_picker.set_next_pick([])
+                    return "<@{} has drafted {}!".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
 
     def draft(self, user: DraftParticipant, mon: DraftPokemon) -> str:
         """Handling for adding Pokemon to a user across all phases of the draft.
@@ -88,6 +99,10 @@ class DraftLeague:
     def get_channel(self) -> int:
         """Returns the Discord channel for the draft of this league."""
         return self._channel
+
+    def get_current_pick(self) -> Union[None, list]:
+        """Returns the current pick."""
+        return self._picking
 
     def get_id(self) -> int:
         """Returns the league ID."""
