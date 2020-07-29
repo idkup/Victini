@@ -67,7 +67,7 @@ async def debug_draft(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     picker.set_mon(to_draft)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker))
+    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
 
 
 @bot.command()
@@ -154,7 +154,7 @@ async def debug_release(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     player.remove_mon(to_release)
-    return await ctx.send("Attempted to remove {} to <@{}>'s team.".format(to_release, player))
+    return await ctx.send("Attempted to remove {} to <@{}>'s team.".format(to_release, player.get_discord()))
 
 
 @bot.command()
