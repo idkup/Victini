@@ -2,7 +2,6 @@ from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
 import asyncio
 from discord.ext import commands
-import discord
 import pickle
 
 admin_ids = [590336288935378950]
@@ -44,8 +43,36 @@ async def close_trades(ctx):
 
 
 @bot.command()
+async def debug_draft(ctx, l_id, d_id, *args):
+    """Adds a Pokemon to a player's team. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        if p.get_discord() == int(d_id):
+            picker = p
+            break
+    else:
+        return await ctx.send("The specified ID is not in this draft!")
+    name = " ".join(args)
+    for mon in league.get_all_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_draft = mon
+            break
+    else:
+        return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
+    picker.set_mon(to_draft)
+    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker))
+
+
+@bot.command()
 async def debug_phase(ctx, l_id, phase="0"):
-    """Sets the phase to whatever I want."""
+    """Sets the phase in a league. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
@@ -60,7 +87,7 @@ async def debug_phase(ctx, l_id, phase="0"):
 
 @bot.command()
 async def debug_leagues(ctx):
-    """Prints all leagues with their current phase."""
+    """Prints all leagues with their current phase. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     await ctx.send("Current leagues: \n{}".format("\n".join(["ID: {} Phase: {}".format(
@@ -69,6 +96,7 @@ async def debug_leagues(ctx):
 
 @bot.command()
 async def debug_participants(ctx, l_id):
+    """Rebuilds all participant objects in the league. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
@@ -87,8 +115,8 @@ async def debug_participants(ctx, l_id):
 
 
 @bot.command()
-async def debug_pickorder(ctx,l_id):
-    """Debugs pick order."""
+async def debug_pickorder(ctx, l_id):
+    """Debugs pick order. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
@@ -100,9 +128,38 @@ async def debug_pickorder(ctx,l_id):
     league.set_pick_order()
     return await ctx.send("Pick order debugged.")
 
+
+@bot.command()
+async def debug_release(ctx, l_id, d_id, *args):
+    """Removes a Pokemon from a player's team. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        if p.get_discord() == int(d_id):
+            player = p
+            break
+    else:
+        return await ctx.send("The specified ID is not in this draft!")
+    name = " ".join(args)
+    for mon in league.get_all_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_release = mon
+            break
+    else:
+        return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
+    player.remove_mon(to_release)
+    return await ctx.send("Attempted to remove {} to <@{}>'s team.".format(to_release, player))
+
+
 @bot.command()
 async def debug_reset(ctx, l_id):
-    """Wipes the league."""
+    """Wipes the league. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
