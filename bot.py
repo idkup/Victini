@@ -154,7 +154,7 @@ async def debug_release(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     player.remove_mon(to_release)
-    return await ctx.send("Attempted to remove {} to <@{}>'s team.".format(to_release, player.get_discord()))
+    return await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
 
 
 @bot.command()
