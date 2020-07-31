@@ -235,6 +235,9 @@ async def forcedraft(ctx, *args):
         return await ctx.send("It is not the drafting phase!")
     name = " ".join(args)
     picker = league.get_pickorder()[league.get_picking()[0]]
+    if name == "SKIP":
+        league.add_missed_pick(picker)
+        return await ctx.send(league.next_pick())
     for mon in league.get_all_pokemon():
         if str(mon).lower() == name.strip().lower():
             to_draft = mon
