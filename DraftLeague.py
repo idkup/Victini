@@ -167,6 +167,10 @@ class DraftLeague:
         self._pickorder = 6 * (self._participants + self._participants[::-1])
         self._picking = [0, datetime.datetime.now().replace(microsecond=0)]
 
+    def set_timer(self, s: int):
+        """Changes the timer for the drafting phase."""
+        self._timer = datetime.timedelta(seconds=s)
+
     def shuffle(self):
         """Shuffles the order of the participants."""
         if self._phase == 0:

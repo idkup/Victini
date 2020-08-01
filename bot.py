@@ -174,6 +174,21 @@ async def debug_reset(ctx, l_id):
 
 
 @bot.command()
+async def debug_timer(ctx, l_id, s):
+    """Changes the timer for picks. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    league.set_timer(int(s))
+    return await ctx.send("Draft timer for league {} is now {} seconds.".format(l_id, s))
+
+
+@bot.command()
 async def draft(ctx, *args):
     """Wrapper for DraftLeague.draft()."""
     for l in leagues:
