@@ -398,7 +398,7 @@ async def release(ctx, *args):
     else:
         return await ctx.send("You do not own {}!".format(name))
     player.remove_mon(to_release)
-    await ctx.send("<@{}> has released {}!".format(player.get_discord(), name))
+    await ctx.send("<@{}> has released {}!".format(player.get_discord(), name.title()))
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
