@@ -46,6 +46,10 @@ class DraftParticipant:
         """Returns the participant's available points."""
         return self._points
 
+    def get_pokemon(self) -> list:
+        """Returns the participant's Pokemon."""
+        return self._pokemon
+
     def get_sd(self) -> list:
         """Returns a list of the participant's Showdown IDs."""
         return self._showdown_id

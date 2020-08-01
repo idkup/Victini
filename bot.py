@@ -1,6 +1,7 @@
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
 import asyncio
+from discord import Embed
 from discord.ext import commands
 import pickle
 
@@ -371,6 +372,37 @@ async def register(ctx):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+
+
+@bot.command()
+async def release(ctx, *args):
+    """Wrapper for DraftParticipant.release()"""
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a drafting channel.")
+
+    name = " ".join(args)
+    for p in league.get_participants():
+        if p.get_discord() == ctx.author.id:
+            player = p
+            break
+    else:
+        return await ctx.send("You are not in this draft!")
+    for mon in player.get_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_release = mon
+            break
+    else:
+        return await ctx.send("You do not own {}!".format(name))
+    player.remove_mon(to_release)
+    await ctx.send("<@{}> has released {}!".format(player.get_discord(), name))
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+        f.close()
+
 
 
 @bot.command()
