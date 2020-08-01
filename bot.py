@@ -383,7 +383,8 @@ async def release(ctx, *args):
             break
     else:
         return await ctx.send("This is not a drafting channel.")
-
+    if league.get_phase() != 2:
+        return await ctx.send("You cannot release Pokemon right now.")
     name = " ".join(args)
     for p in league.get_participants():
         if p.get_discord() == ctx.author.id:
