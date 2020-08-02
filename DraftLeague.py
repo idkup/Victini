@@ -33,6 +33,10 @@ class DraftLeague:
         """Adds a DraftParticipant object to _participants."""
         self._participants.append(user)
 
+    def add_pokemon(self, name: str,  cost: int):
+        """Adds a DraftPokemon object to _tierlist."""
+        self._tierlist.append(DraftPokemon(name, cost, "-Mega" in name))
+
     def available_pokemon(self, cost: int) -> list:
         """Returns a list of the available Pokemon in the given tier."""
         mon_list = []
