@@ -56,6 +56,7 @@ async def debug_aggs(ctx, l_id, cost, *args):
         return await ctx.send("Invalid league ID.")
     name = " ".join(args)
     league.add_pokemon(name, cost)
+    return await ctx.send("{} has been added to league {} at cost {}.".format(name, l_id, cost))
 
 
 @bot.command()
