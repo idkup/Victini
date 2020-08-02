@@ -296,6 +296,10 @@ async def info(ctx, l_id, *args):
     else:
         return await ctx.send("Invalid league ID.")
     name = " ".join([*args])
+    if name.lower() == "all":
+        for p in league.get_participants():
+            await ctx.send(str(p))
+        return
     n = league.get_user(name)
     if n is False:
         return await ctx.send("{} is not participating in the draft.".format(name))
