@@ -298,7 +298,7 @@ async def info(ctx, l_id, *args):
     name = " ".join([*args])
     if name.lower() == "all":
         for p in league.get_participants():
-            await ctx.send(str(p))
+            await ctx.author.send(str(p))
         return
     n = league.get_user(name)
     if n is False:
