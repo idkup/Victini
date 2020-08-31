@@ -30,7 +30,7 @@ class DraftPokemon:
         return self._kills
 
     def get_cost(self) -> int:
-        """Returns self._tier."""
+        """Returns self._cost."""
         return self._cost
 
     def get_owner(self):
@@ -40,6 +40,14 @@ class DraftPokemon:
     def is_mega(self) -> bool:
         """Returns self._is_mega."""
         return self._is_mega
+
+    def set_cost(self, cost: int):
+        """Sets self._cost."""
+        self._cost = cost
+
+    def set_name(self, name: str):
+        """Sets self._name."""
+        self._name = name
 
     def set_owner(self, owner):
         """Sets self._owner."""

@@ -44,19 +44,22 @@ async def close_trades(ctx):
 
 
 @bot.command()
-async def debug_aggs(ctx, l_id, cost, *args):
+async def debug_aggs(ctx):
     """Fixes Aggs' mistakes. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command!")
     for l in leagues:
-        if l.get_id() == int(l_id):
+        if l.get_id() == 2:
             league = l
             break
-    else:
-        return await ctx.send("Invalid league ID.")
-    name = " ".join(args)
-    league.add_pokemon(name, cost)
-    return await ctx.send("{} has been added to league {} at cost {}.".format(name, l_id, cost))
+        else:
+            return
+    for p in league.get_all_pokemon():
+        if p.get_name() == "Cofagrigus":
+            p.set_cost(9)
+        elif p.get_name() == "Hippowdown":
+            p.set_name("Hippowdon")
+    return await ctx.send("Cofagrigus now costs 9 instead of '9'." "Hippowdown has been replaced by Hippowdon.")
 
 
 @bot.command()
