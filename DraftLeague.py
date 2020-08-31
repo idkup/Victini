@@ -81,8 +81,9 @@ class DraftLeague:
         if self._phase == 0 or self._phase >= 3:
             return "You cannot draft in this phase."
         elif self._phase == 2:
-            user.set_mon(mon)
-            return "<@{}> has drafted {}!".format(user.get_discord(), str(mon))
+            if user.set_mon(mon) is True:
+                return "<@{}> has drafted {}!".format(user.get_discord(), str(mon))
+            return "Could not draft {}.".format(str(mon))
         elif self._phase == 1:
             if user in self._missedpicks:
                 if user.set_mon(mon) is True:
