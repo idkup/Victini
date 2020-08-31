@@ -51,14 +51,17 @@ async def debug_aggs(ctx):
     for l in leagues:
         if l.get_id() == 2:
             league = l
+            await ctx.send("1")
             break
-        else:
-            return
+    else:
+        return
     for p in league.get_all_pokemon():
         if str(p) == "Cofagrigus":
             p.set_cost(9)
+            await ctx.send("2")
         elif str(p) == "Hippowdown":
             p.set_name("Hippowdon")
+            await ctx.send("3")
     return await ctx.send("Cofagrigus now costs 9 instead of '9'." "Hippowdown has been replaced by Hippowdon.")
 
 
