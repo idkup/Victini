@@ -5,7 +5,7 @@ from discord import Embed
 from discord.ext import commands
 import pickle
 
-admin_ids = [590336288935378950]
+admin_ids = [590336288935378950, 167690209821982721]
 bot = commands.Bot(command_prefix='!')
 
 
