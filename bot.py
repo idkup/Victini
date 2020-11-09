@@ -59,8 +59,8 @@ async def debug_cost(ctx, mon, cost):
     except ValueError:
         return await ctx.send("Cost must be an integer.")
     for p in league.get_all_pokemon():
-        if str(p) == mon:
-            mon.set_cost(cost)
+        if str(p).lower() == mon.lower():
+            p.set_cost(cost)
             return await ctx.send("{} now costs {}.".format(mon, cost))
     return await ctx.send("Could not find {}".format(mon))
 
