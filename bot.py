@@ -5,8 +5,8 @@ from discord import Embed
 from discord.ext import commands
 import pickle
 
-admin_ids = [590336288935378950, 167690209821982721]
-bot = commands.Bot(command_prefix='!')
+admin_ids = [590336288935378950, 167690209821982721, 173733502041325569]
+bot = commands.Bot(command_prefix='ù')
 
 
 @bot.command()
@@ -133,7 +133,7 @@ async def debug_participants(ctx, l_id):
         lp.append([league, p.get_discord(), p.get_name()])
     league.clear_participants()
     for p in lp:
-        league.add_participant(DraftParticipant(p[0], int(p[1]), p[2]))
+        league.add_participant(DraftParticipant(p[0], int(p[1]), p[2], league.get_start_timer()))
     await ctx.send("Participant objects rebuilt in league {}".format(l_id))
 
 
@@ -304,7 +304,7 @@ async def forceregister(ctx, d_id, name):
     for x in league.get_participants():
         if x.get_discord() == int(d_id):
             return await ctx.send("{} is already registered!".format(name))
-    league.add_participant(DraftParticipant(league, int(d_id), name))
+    league.add_participant(DraftParticipant(league, int(d_id), name, league.get_start_timer()))
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 
@@ -330,7 +330,7 @@ async def info(ctx, l_id, *args):
 
 
 @bot.command()
-async def init(ctx, l_id, tierlist):
+async def init(ctx, l_id, tierlist, timer=540, increment=180):
     """Starts a new DraftLeague()."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
@@ -343,7 +343,7 @@ async def init(ctx, l_id, tierlist):
             return await ctx.send("League already exists with this ID.")
         if league.get_channel() == ctx.channel.id:
             return await ctx.send("Another league is using this channel as its drafting channel.")
-    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id))
+    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id, timer, increment))
     return await ctx.send("New league initialized with ID {}.".format(l_id))
 
 
@@ -408,7 +408,7 @@ async def register(ctx):
     for x in league.get_participants():
         if x.get_discord() == ctx.author.id:
             return await ctx.send("You are already registered!")
-    league.add_participant(DraftParticipant(league, ctx.author.id, ctx.author.name))
+    league.add_participant(DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer()))
     await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
@@ -493,8 +493,12 @@ async def start_draft(ctx):
         return await ctx.send("There are no participants.")
     league.set_pick_order()
     league.next_phase()
-    return await ctx.send("The draft has been started! Pick order: {}".format(
+    await ctx.send("The draft has been started! Pick order: {}".format(
         ", ".join([p.get_name() for p in league.get_participants()])))
+
+    return await ctx.send("Now picking: <@{}>. Deadline: {} ({} minutes)".format(
+            league._pickorder[league._picking[0]].get_discord(), (league._picking[1] + league._pickorder[league._picking[0]].get_timer()).replace(microsecond=0), 
+            round(league._pickorder[league._picking[0]].get_timer().total_seconds()/60)))
 
 
 @bot.command()

@@ -1,10 +1,11 @@
 from DraftPokemon import DraftPokemon
 from typing import Union
+import datetime
 
 
 class DraftParticipant:
     """Represents a participant in a DraftLeague."""
-    def __init__(self, league, discord_id, name, points=120):
+    def __init__(self, league, discord_id, name, timer_start, points=120):
         """Initializes the participant."""
         self._league = league
         self._name = name
@@ -14,6 +15,7 @@ class DraftParticipant:
         self._points = points
         self._pokemon = []
         self._mega = False
+        self._timer = datetime.timedelta(minutes=timer_start)
 
     def __str__(self):
         """Behavior when stringified."""
@@ -53,6 +55,18 @@ class DraftParticipant:
     def get_sd(self) -> list:
         """Returns a list of the participant's Showdown IDs."""
         return self._showdown_id
+
+    def get_timer(self):
+        """Returns the participant's timer."""
+        return self._timer
+
+    def add_time_to_timer(self, mins_to_add: int, remove=False):
+        """Remove time from the user's timer."""
+        if remove:
+            self._timer -= datetime.timedelta(minutes=round(mins_to_add, 2))
+        else:
+            self._timer += datetime.timedelta(minutes=round(mins_to_add, 2))
+        return self._timer
 
     def remove_mon(self, mon: DraftPokemon) -> Union[DraftPokemon, str]:
         """Removes a Pokemon from a participant and refunds points.

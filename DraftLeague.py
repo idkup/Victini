@@ -10,7 +10,7 @@ from typing import Union
 class DraftLeague:
     """Represents a Draft League."""
 
-    def __init__(self, league_id, tierlist, channel):
+    def __init__(self, league_id, tierlist, channel, timer_start, increment):
         """Initializes the Draft League and tiers Pokemon."""
         self._league_id = league_id
         self._participants = []
@@ -18,6 +18,8 @@ class DraftLeague:
         self._phase = 0
         self._picking = None
         self._pickorder = []
+        self._timer_start = int(timer_start)
+        self._increment = int(increment)
         self._timer = datetime.timedelta(seconds=28800)
         self._channel = channel
         with open('files/{}.json'.format(tierlist), 'r') as file:
@@ -51,7 +53,7 @@ class DraftLeague:
         current_picker = self._pickorder[self._picking[0]]
         if self._phase != 1:
             return "It is no longer the drafting phase."
-        if datetime.datetime.now() - self._picking[1] > self._timer:
+        if datetime.datetime.now() - self._picking[1] > current_picker.get_timer():
             self.add_missed_pick(current_picker)
             return "<@{}> has missed their pick! ".format(
                 current_picker.get_discord()) + self.next_pick()
@@ -140,6 +142,10 @@ class DraftLeague:
                 return p
         else:
             return False
+    
+    def get_start_timer(self) -> int:
+        """Returns league timer starter."""
+        return self._timer_start
 
     def next_phase(self):
         """Increments the phase by 1."""
@@ -152,10 +158,19 @@ class DraftLeague:
         if self._picking[0] >= len(self._pickorder) - 1:
             self.next_phase()
             return "The draft has been completed."
+
+        old_picker = self._pickorder[self._picking[0]]
+        minutes = (datetime.datetime.now() - self._picking[1]).total_seconds()/60
+        old_picker.add_time_to_timer(minutes, remove=True) # remove = True means remove time
+
         self._picking[0] += 1
         self._picking[1] = datetime.datetime.now().replace(microsecond=0)
-        return "Now picking: <@{}>. Deadline: {}".format(
-            self._pickorder[self._picking[0]].get_discord(), self._picking[1] + self._timer)
+
+        current_picker = self._pickorder[self._picking[0]]
+        current_picker.add_time_to_timer(self._increment) # add 3 hours to user's timer
+
+        return "Now picking: <@{}>. Deadline: {} ({} minutes)".format(
+            self._pickorder[self._picking[0]].get_discord(), (self._picking[1] + current_picker.get_timer()).replace(microsecond=0), round(current_picker.get_timer().total_seconds()/60))
 
     def save(self):
         """Pickles and saves the league in a text file."""
