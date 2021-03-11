@@ -63,7 +63,10 @@ class DraftParticipant:
     def add_time_to_timer(self, mins_to_add: int, remove=False):
         """Remove time from the user's timer."""
         if remove:
-            self._timer -= datetime.timedelta(minutes=round(mins_to_add, 2))
+            if datetime.timedelta(minutes=round(mins_to_add, 2)) > self._timer:
+                self._timer = datetime.timedelta(minutes=0)
+            else:
+                self._timer -= datetime.timedelta(minutes=round(mins_to_add, 2))
         else:
             self._timer += datetime.timedelta(minutes=round(mins_to_add, 2))
         return self._timer
