@@ -495,9 +495,12 @@ async def start_draft(ctx):
     await ctx.send("The draft has been started! Pick order: {}".format(
         ", ".join([p.get_name() for p in league.get_participants()])))
 
+    first_participant = league._pickorder[league._picking[0]]
+    first_participant.add_time_to_timer(league._increment)
+
     return await ctx.send("Now picking: <@{}>. Deadline: {} ({} minutes)".format(
-            league._pickorder[league._picking[0]].get_discord(), (league._picking[1] + league._pickorder[league._picking[0]].get_timer()).replace(microsecond=0), 
-            round(league._pickorder[league._picking[0]].get_timer().total_seconds()/60)))
+            first_participant.get_discord(), (league._picking[1] + first_participant.get_timer()).replace(microsecond=0), 
+            round(first_participant.get_timer().total_seconds()/60)))
 
 
 @bot.command()
