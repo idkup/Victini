@@ -65,7 +65,6 @@ async def debug_cost(ctx, mon, cost):
     return await ctx.send("Could not find {}".format(mon))
 
 
-
 @bot.command()
 async def debug_draft(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
@@ -91,6 +90,21 @@ async def debug_draft(ctx, l_id, d_id, *args):
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     picker.set_mon(to_draft)
     return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
+
+
+@bot.command()
+async def debug_increment(ctx, l_id, s):
+    """Changes the increment of the pick timer. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    league.set_increment(int(s))
+    return await ctx.send("Draft timer increment for league {} is now {} seconds.".format(l_id, s))
 
 
 @bot.command()
@@ -193,21 +207,6 @@ async def debug_reset(ctx, l_id):
         return await ctx.send("Invalid league ID.")
     leagues.remove(league)
     return await ctx.send("League removed from database.")
-
-
-@bot.command()
-async def debug_timer(ctx, l_id, s):
-    """Changes the timer for picks. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
-        return await ctx.send("Invalid league ID.")
-    league.set_timer(int(s))
-    return await ctx.send("Draft timer for league {} is now {} seconds.".format(l_id, s))
 
 
 @bot.command()

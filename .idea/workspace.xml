@@ -21,6 +21,7 @@
   <component name="ChangeListManager">
     <list default="true" id="86caf51d-684c-442f-9809-7752a33b921b" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DraftLeague.py" beforeDir="false" afterPath="$PROJECT_DIR$/DraftLeague.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -318,6 +319,7 @@
         </entry>
       </map>
     </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial commit.&#10;&#10;Tier enum, DraftPokemon class added. DraftParticipant entirely rewritten." />
@@ -335,6 +337,12 @@
     <MESSAGE value="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)" />
     <option name="LAST_COMMIT_MESSAGE" value="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)" />
   </component>
+  <component name="WindowStateProjectService">
+    <state x="421" y="96" key="FileChooserDialogImpl" timestamp="1615323172775">
+      <screen x="0" y="0" width="1280" height="680" />
+    </state>
+    <state x="421" y="96" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1615323172775" />
+  </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
@@ -345,7 +353,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/bot.py</url>
-          <line>161</line>
+          <line>175</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
