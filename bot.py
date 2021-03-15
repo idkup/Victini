@@ -6,7 +6,7 @@ from discord.ext import commands
 import pickle
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585]
-bot = commands.Bot(command_prefix='|')
+bot = commands.Bot(command_prefix='!')
 
 
 @bot.command()
