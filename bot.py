@@ -329,7 +329,7 @@ async def info(ctx, l_id, *args):
 
 
 @bot.command()
-async def init(ctx, l_id, tierlist, timer=540, increment=180):
+async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120):
     """Starts a new DraftLeague()."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
@@ -342,7 +342,7 @@ async def init(ctx, l_id, tierlist, timer=540, increment=180):
             return await ctx.send("League already exists with this ID.")
         if league.get_channel() == ctx.channel.id:
             return await ctx.send("Another league is using this channel as its drafting channel.")
-    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id, timer, increment))
+    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id, init_time, increment, points))
     return await ctx.send("New league initialized with ID {}.".format(l_id))
 
 
@@ -407,7 +407,8 @@ async def register(ctx):
     for x in league.get_participants():
         if x.get_discord() == ctx.author.id:
             return await ctx.send("You are already registered!")
-    league.add_participant(DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer()))
+    league.add_participant(
+        DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer()), league.get_start_points())
     await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)

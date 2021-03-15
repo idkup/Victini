@@ -10,7 +10,7 @@ from typing import Union
 class DraftLeague:
     """Represents a Draft League."""
 
-    def __init__(self, league_id, tierlist, channel, timer_start, increment):
+    def __init__(self, league_id, tierlist, channel, timer_start, increment, pts):
         """Initializes the Draft League and tiers Pokemon."""
         self._league_id = league_id
         self._participants = []
@@ -18,9 +18,9 @@ class DraftLeague:
         self._phase = 0
         self._picking = None
         self._pickorder = []
+        self._points_per_participant = pts
         self._timer_start = int(timer_start)
         self._increment = int(increment)
-        self._timer = datetime.timedelta(seconds=28800)
         self._channel = channel
         with open('files/{}.json'.format(tierlist), 'r') as file:
             d = json.load(file)
@@ -137,12 +137,17 @@ class DraftLeague:
         return self._phase
 
     def get_user(self, name) -> Union[DraftParticipant, bool]:
+        """Returns the DraftParticipant of the given name."""
         for p in self._participants:
             if p.get_name().lower() == name.lower():
                 return p
         else:
             return False
-    
+
+    def get_start_points(self) -> int:
+        """Returns the starting points per player of the league."""
+        return self._points_per_participant
+
     def get_start_timer(self) -> int:
         """Returns league timer starter."""
         return self._timer_start
