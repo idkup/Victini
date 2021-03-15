@@ -6,7 +6,7 @@ from discord.ext import commands
 import pickle
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585]
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='|')
 
 
 @bot.command()
@@ -408,7 +408,7 @@ async def register(ctx):
         if x.get_discord() == ctx.author.id:
             return await ctx.send("You are already registered!")
     league.add_participant(
-        DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer()), league.get_start_points())
+        DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer(), league.get_start_points()))
     await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
@@ -444,7 +444,6 @@ async def release(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
-
 
 
 @bot.command()

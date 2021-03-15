@@ -185,7 +185,7 @@ class DraftLeague:
 
     def set_increment(self, s: int):
         """Changes the increment for the drafting phase."""
-        self._increment = datetime.timedelta(seconds=s)
+        self._increment = s / 60
 
     def set_phase(self, phase: int):
         """Sets the phase of the draft. DEBUG ONLY."""
