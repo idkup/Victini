@@ -44,7 +44,7 @@ async def close_trades(ctx):
 
 
 @bot.command()
-async def debug_add_pokemon(ctx, l_id, name, cost):
+async def debug_add_pokemon(ctx, name, cost):
     """Adds a Pokemon to a DraftLeague already in progress. Formerly debug_aggs(). Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command!")
@@ -59,7 +59,7 @@ async def debug_add_pokemon(ctx, l_id, name, cost):
     except ValueError:
         return await ctx.send("Cost must be an integer.")
     league.add_pokemon(name, int(cost))
-    return await ctx.send("{} added to league {} at cost {}.".format(name, l_id, cost))
+    return await ctx.send("{} added to this league at cost {}.".format(name, cost))
 
 
 @bot.command()
