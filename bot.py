@@ -58,7 +58,7 @@ async def debug_add_pokemon(ctx, name, cost):
         cost = int(cost)
     except ValueError:
         return await ctx.send("Cost must be an integer.")
-    league.add_pokemon(name, int(cost))
+    league.add_pokemon(name, cost)
     return await ctx.send("{} added to this league at cost {}.".format(name, cost))
 
 
