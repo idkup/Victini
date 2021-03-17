@@ -44,6 +44,25 @@ async def close_trades(ctx):
 
 
 @bot.command()
+async def debug_add_pokemon(ctx, l_id, name, cost):
+    """Adds a Pokemon to a DraftLeague already in progress. Formerly debug_aggs(). Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command!")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a drafting channel!")
+    try:
+        cost = int(cost)
+    except ValueError:
+        return await ctx.send("Cost must be an integer.")
+    league.add_pokemon(name, int(cost))
+    return await ctx.send("{} added to league {} at cost {}.".format(name, l_id, cost))
+
+
+@bot.command()
 async def debug_cost(ctx, mon, cost):
     """Changes the cost of a specific Pokemon in that DraftLeague. Admin command."""
     if ctx.author.id not in admin_ids:
@@ -53,7 +72,7 @@ async def debug_cost(ctx, mon, cost):
             league = l
             break
     else:
-        return await ctx.send("Invalid league ID.")
+        return await ctx.send("This is not a drafting channel!")
     try:
         cost = int(cost)
     except ValueError:
