@@ -25,7 +25,7 @@ class DraftLeague:
         with open('files/{}.json'.format(tierlist), 'r') as file:
             d = json.load(file)
             file.close()
-        self._tierlist = [DraftPokemon(k, v, "-Mega" in k) for k, v in d.items()]
+        self._tierlist = [DraftPokemon(k, v, "-Mega" in k or "Mega " in k) for k, v in d.items()]
 
     def add_missed_pick(self, user: DraftParticipant):
         """Adds a missed pick to a user."""

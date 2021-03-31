@@ -167,6 +167,12 @@ async def debug_participants(ctx, l_id):
     league.clear_participants()
     for p in lp:
         league.add_participant(DraftParticipant(p[0], int(p[1]), p[2], league.get_start_timer()))
+    for pk in league.get_all_pokemon():
+        o = pk.get_owner()
+        if o is not None:
+            o.set_owner(None)
+            o.set_mon(pk)
+
     await ctx.send("Participant objects rebuilt in league {}".format(l_id))
 
 
