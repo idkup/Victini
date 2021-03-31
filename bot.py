@@ -170,7 +170,7 @@ async def debug_participants(ctx, l_id):
     for pk in league.get_all_pokemon():
         o = pk.get_owner()
         if o is not None:
-            o.set_owner(None)
+            pk.set_owner(None)
             o.set_mon(pk)
 
     await ctx.send("Participant objects rebuilt in league {}".format(l_id))
