@@ -173,7 +173,7 @@ async def debug_participants(ctx, l_id):
             for p in league.get_participants():
                 if o.get_discord() == p.get_discord():
                     pk.set_owner(None)
-                    o.set_mon(pk)
+                    p.set_mon(pk)
                     continue
 
     await ctx.send("Participant objects rebuilt in league {}".format(l_id))
