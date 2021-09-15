@@ -6,7 +6,7 @@ from discord.ext import commands
 import pickle
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585, 175763247176220672]
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='|')
 
 
 @bot.command()
@@ -192,6 +192,22 @@ async def debug_pickorder(ctx, l_id):
         return await ctx.send("Invalid league ID.")
     league.set_pick_order()
     return await ctx.send("Pick order debugged.")
+
+
+@bot.command()
+async def debug_predraft(ctx, l_id):
+    """Wipes all predrafts. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        p.set_next_pick([])
+    return await ctx.send(f"All predrafts wiped in league {l_id}.")
 
 
 @bot.command()

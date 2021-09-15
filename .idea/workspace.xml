@@ -23,7 +23,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DraftLeague.py" beforeDir="false" afterPath="$PROJECT_DIR$/DraftLeague.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/files/leagues.txt" beforeDir="false" afterPath="$PROJECT_DIR$/files/leagues.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -330,22 +329,22 @@
       <screen x="0" y="0" width="1280" height="680" />
     </state>
     <state x="421" y="96" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1625101880144" />
-    <state width="1259" height="131" key="GridCell.Tab.0.bottom" timestamp="1631742996384">
+    <state width="1259" height="131" key="GridCell.Tab.0.bottom" timestamp="1631743265465">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="131" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1631742996384" />
-    <state width="1259" height="131" key="GridCell.Tab.0.center" timestamp="1631742996384">
+    <state width="1259" height="131" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1631743265465" />
+    <state width="1259" height="131" key="GridCell.Tab.0.center" timestamp="1631743265464">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="131" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1631742996384" />
-    <state width="1259" height="131" key="GridCell.Tab.0.left" timestamp="1631742996384">
+    <state width="1259" height="131" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1631743265464" />
+    <state width="1259" height="131" key="GridCell.Tab.0.left" timestamp="1631743265464">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="131" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1631742996384" />
-    <state width="1259" height="131" key="GridCell.Tab.0.right" timestamp="1631742996384">
+    <state width="1259" height="131" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1631743265464" />
+    <state width="1259" height="131" key="GridCell.Tab.0.right" timestamp="1631743265465">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="131" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1631742996384" />
+    <state width="1259" height="131" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1631743265465" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -357,7 +356,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/bot.py</url>
-          <line>203</line>
+          <line>219</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
