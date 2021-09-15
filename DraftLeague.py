@@ -62,13 +62,18 @@ class DraftLeague:
         elif current_picker.get_next_pick():
             for p in current_picker.get_next_pick():
                 for mon in self.get_all_pokemon():
-                    if str(mon).lower() == p.strip().lower():
-                        to_draft = mon
-                        break
+                    if str(mon).lower() == p[0].strip().lower():
+                        if p[1] == 0 or p[1] == self._picking[0]//len(self._participants) + 1:
+                            to_draft = mon
+                            break
                 else:
                     continue
                 if current_picker.set_mon(to_draft) is True:
-                    current_picker.set_next_pick([])
+                    new_predrafts = []
+                    for p in current_picker.get_next_pick():
+                        if p[1] != 0:
+                            new_predrafts.append(p)
+                    current_picker.set_next_pick(new_predrafts)
                     return "<@{}> has drafted {}! ".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
 
     def clear_participants(self):

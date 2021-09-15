@@ -391,8 +391,9 @@ async def participants(ctx, l_id):
 
 
 @bot.command()
-async def predraft(ctx, l_id, key, *args):
-    """Alters the list of premade picks of a DraftParticipant. Keys: CLEAR, ADD, REPLACE, REMOVE"""
+async def predraft(ctx, l_id, key, rd=0, *args):
+    """Alters the list of premade picks of a DraftParticipant. If rd is not 0, the predrafted Pokemon will only be
+    drafted in the specified round. Keys: ADD, CLEAR, REMOVE"""
     for l in leagues:
         if l.get_id() == int(l_id):
             league = l
@@ -412,13 +413,12 @@ async def predraft(ctx, l_id, key, *args):
         picker.set_next_pick([])
         return await ctx.send("Priority for automatic drafting cleared.")
     if key.lower() == "add":
-        np.append(" ".join(args))
+        np.append((" ".join(args), rd))
         picker.set_next_pick(np)
-    elif key.lower() == "replace":
-        picker.set_next_pick([" ".join(args)])
-    elif key.lower() == "remove":
+    if key.lower() == "remove":
         np.remove(" ".join(args))
-    return await ctx.send("Priority for automatic drafting: {}".format(" ".join(picker.get_next_pick())))
+    return await ctx.send("Priority for automatic drafting: {}".format(
+        "; ".join([f"{x[0]}, round: {x[1]}" for x in picker.get_next_pick()])))
 
 
 @bot.command()
