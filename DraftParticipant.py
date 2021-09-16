@@ -111,7 +111,7 @@ class DraftParticipant:
 
     def set_points(self, points: int):
         """Sets the participant's points."""
-        self._points += points
+        self._points = points
 
     def substitute(self, name: str, d_id: int):
         """Substitutes in a different player, replacing name and Discord ID while wiping the Showdown ID list."""

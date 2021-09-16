@@ -356,7 +356,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/bot.py</url>
-          <line>238</line>
+          <line>239</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
