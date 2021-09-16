@@ -6,7 +6,7 @@ from discord.ext import commands
 import pickle
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585, 175763247176220672]
-bot = commands.Bot(command_prefix='|')
+bot = commands.Bot(command_prefix='!')
 
 
 @bot.command()
@@ -432,7 +432,9 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         np.append((" ".join(args), rd))
         picker.set_next_pick(np)
     if key.lower() == "remove":
-        np.remove(" ".join(args))
+        for p in np:
+            if p[0] == " ".join(args):
+                np.remove(p)
     return await ctx.send("Priority for automatic drafting: {}".format(
         "; ".join([f"{x[0]}, round: {x[1]}" for x in picker.get_next_pick()])))
 
@@ -548,7 +550,7 @@ async def start_draft(ctx):
 
 
 @bot.command()
-async def substitute(ctx, old_id, new_id, new):
+async def substitute(ctx, old_id, new_id, new_name):
     """Wrapper for DraftParticipant.substitute()."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
@@ -560,7 +562,7 @@ async def substitute(ctx, old_id, new_id, new):
         return await ctx.send("This is not a drafting channel.")
     for p in league.get_participants():
         if int(p.get_discord()) == int(old_id):
-            p.substitute(new, int(new_id))
+            p.substitute(new_name, int(new_id))
             break
     else:
         return await ctx.send("The player you are attempting to substitute is not in the league.")
