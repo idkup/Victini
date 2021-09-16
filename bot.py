@@ -226,7 +226,7 @@ async def debug_points(ctx, l_id, pts):
         for m in p.get_pokemon():
             new_pts -= m.get_cost()
         p.set_points(new_pts)
-        await ctx.send(f"{p.name} nw has {p.get_points()} points remaining.")
+        await ctx.send(f"{p.get_name()} now has {p.get_points()} points remaining.")
     return await ctx.send(f"League {l_id} points per participant set to {pts}.")
 
 
