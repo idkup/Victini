@@ -211,6 +211,25 @@ async def debug_predraft(ctx, l_id):
 
 
 @bot.command()
+async def debug_points(ctx, l_id, pts):
+    """Debugs starting points. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        new_pts = int(pts)
+        for m in p.get_pokemon():
+            new_pts -= m.get_cost()
+        p.set_points(new_pts)
+
+
+
+@bot.command()
 async def debug_release(ctx, l_id, d_id, *args):
     """Removes a Pokemon from a player's team. Admin command."""
     if ctx.author.id not in admin_ids:
@@ -347,7 +366,8 @@ async def forceregister(ctx, d_id, name):
     for x in league.get_participants():
         if x.get_discord() == int(d_id):
             return await ctx.send("{} is already registered!".format(name))
-    league.add_participant(DraftParticipant(league, int(d_id), name, league.get_start_timer()))
+    league.add_participant(DraftParticipant(league, int(d_id), name,
+                                            league.get_start_timer(), league.get_start_points()))
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 

@@ -24,10 +24,6 @@ class DraftParticipant:
 {}""".format(self._name, self._league.get_id(), self._points,
              "\n".join(["{} ({})".format(x, x.get_cost()) for x in self._pokemon]))
 
-    def add_points(self, points: int):
-        """Adds points to a participant."""
-        self._points += points
-
     def add_showdown(self, s_id: str):
         """Adds a Showdown ID to a participant."""
         self._showdown_id.append(s_id)
@@ -112,6 +108,10 @@ class DraftParticipant:
     def set_next_pick(self, picks: list):
         """Modifies self._next_picks"""
         self._next_pick = picks
+
+    def set_points(self, points: int):
+        """Sets the participant's points."""
+        self._points += points
 
     def substitute(self, name: str, d_id: int):
         """Substitutes in a different player, replacing name and Discord ID while wiping the Showdown ID list."""
