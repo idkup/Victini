@@ -598,15 +598,17 @@ async def replay_channel(ctx, l_id):
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            return await ctx.send("Cannot set a drafting channel as a replay channel.")
-        elif l.get_replay_channel() == ctx.channel.id:
-            return await ctx.send("This channel is already being used as a replay channel.")
+        try:
+            if l.get_channel() == ctx.channel.id:
+                return await ctx.send("Cannot set a drafting channel as a replay channel.")
+            elif l.get_replay_channel() == ctx.channel.id:
+                return await ctx.send("This channel is already being used as a replay channel.")
+        except AttributeError:
+            pass
     for l in leagues:
         if l.get_id() == int(l_id):
             l.set_replay_channel(ctx.channel.id)
             return await ctx.send(f"Current channel set as the replay channel for league {l_id}.")
-            break
     else:
         return await ctx.send("There is no league with this id.")
 
@@ -692,9 +694,6 @@ async def substitute(ctx, old_id, new_id, new_name):
 async def on_ready():
     """Prints 'ready' when bot is online. Starts timer for draft phase."""
     bot.loop.create_task(timer())
-    for l in leagues:
-        if not l._replay_channel:
-            l._replay_channel = None
     print('ready')
 
 
