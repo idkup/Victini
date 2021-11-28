@@ -1,11 +1,13 @@
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
+from ParseReplay import parse_replay
 import asyncio
 from discord import Embed
 from discord.ext import commands
 import pickle
 
-admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585, 175763247176220672]
+admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585,
+             175763247176220672]
 bot = commands.Bot(command_prefix='!')
 
 
@@ -511,6 +513,81 @@ async def release(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+
+
+@bot.command()
+async def replay(ctx, replay_url):
+    """Uploads a replay to be parsed."""
+    for l in leagues:
+        if ctx.channel.id == l.get_replay_channel():
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a replay channel.")
+    if league.get_phase() < 2:
+        return await ctx.send("This league is still in the drafting phase!")
+    parsed_battle = parse_replay(replay_url)
+    check_alive = lambda x: not x.ko
+    winner_id = None
+    loser_id = None
+    for participant in l.get_participants():
+        matches = 0
+        match_list = []
+        for p in participant.get_pokemon():
+            for q in parsed_battle.winner.team:
+                if str(p) in q.species or q.species in str(p):
+                    matches += 1
+                    match_list.append((p, q))
+                    break
+            if matches == 6:
+                for m in match_list:
+                    m[0].add_kills(m[1].direct_kills + m[1].indirect_kills)
+                    await ctx.send(f"{str(m[0])} was credited with {m[1].direct_kills + m[1].indirect_kills} kill(s).")
+                    m[0].add_deaths(m[1].ko)
+                    await ctx.send(f"{str(m[0])} was assessed with {int(m[1].ko)} death(s).")
+                winner_id = participant.get_discord()
+                break
+            for q in parsed_battle.loser.team:
+                if str(p) in q.species or q.species in str(p):
+                    matches += 1
+                    match_list.append((p, q))
+                    break
+            if matches == 6:
+                for m in match_list:
+                    m[0].add_kills(m[1].direct_kills + m[1].indirect_kills)
+                    m[0].add_deaths(m[1].ko)
+                loser_id = participant.get_discord()
+                break
+
+    winner_team_stats = "\n".join(str(p) for p in parsed_battle.winner.team)
+    loser_team_stats = "\n".join(str(p) for p in parsed_battle.loser.team)
+    return await ctx.send(f"""Result: ||**<@{winner_id}>** won against **<@{loser_id}>** {
+    sum(map(check_alive, parsed_battle.winner.team))} - {sum(map(check_alive, parsed_battle.loser.team))}||
+
+||**{parsed_battle.winner.psname}**: 
+{winner_team_stats}||
+
+||**{parsed_battle.loser.psname}**:
+{loser_team_stats}||""")
+
+
+@bot.command()
+async def replay_channel(ctx, l_id):
+    """Sets the replay channel of a league."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            return await ctx.send("Cannot set a drafting channel as a replay channel.")
+        elif l.get_replay_channel() == ctx.channel.id:
+            return await ctx.send("This channel is already being used as a replay channel.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            l.set_replay_channel(ctx.channel.id)
+            return await ctx.send(f"Current channel set as the replay channel for league {l_id}.")
+            break
+    else:
+        return await ctx.send("There is no league with this id.")
 
 
 @bot.command()

@@ -22,6 +22,7 @@ class DraftLeague:
         self._timer_start = int(timer_start)
         self._increment = int(increment)
         self._channel = channel
+        self._replay_channel = None
         with open('files/{}.json'.format(tierlist), 'r') as file:
             d = json.load(file)
             file.close()
@@ -35,7 +36,7 @@ class DraftLeague:
         """Adds a DraftParticipant object to _participants."""
         self._participants.append(user)
 
-    def add_pokemon(self, name: str,  cost: int):
+    def add_pokemon(self, name: str, cost: int):
         """Adds a DraftPokemon object to _tierlist."""
         self._tierlist.append(DraftPokemon(name, cost, "-Mega" in name))
 
@@ -63,7 +64,7 @@ class DraftLeague:
             for p in current_picker.get_next_pick():
                 for mon in self.get_all_pokemon():
                     if str(mon).lower() == p[0].strip().lower():
-                        if p[1] == 0 or p[1] == self._picking[0]//len(self._participants) + 1:
+                        if p[1] == 0 or p[1] == self._picking[0] // len(self._participants) + 1:
                             to_draft = mon
                             break
                 else:
@@ -71,10 +72,11 @@ class DraftLeague:
                 if current_picker.set_mon(to_draft) is True:
                     new_predrafts = []
                     for p in current_picker.get_next_pick():
-                        if p[1] == 0 or p[1] > (self._picking[0]//len(self._participants) + 1):
+                        if p[1] == 0 or p[1] > (self._picking[0] // len(self._participants) + 1):
                             new_predrafts.append(p)
                     current_picker.set_next_pick(new_predrafts)
-                    return "<@{}> has drafted {}! ".format(current_picker.get_discord(), str(to_draft)) + self.next_pick()
+                    return "<@{}> has drafted {}! ".format(current_picker.get_discord(),
+                                                           str(to_draft)) + self.next_pick()
 
     def clear_participants(self):
         """Deletes all participants. Debug use only."""
@@ -105,8 +107,10 @@ class DraftLeague:
     def find_mon(self, mon: DraftPokemon) -> str:
         """Returns basic information about a DraftPokemon object."""
         if mon.get_owner():
-            return "{} costs {} and is owned by {}.".format(str(mon), mon.get_cost(), mon.get_owner().get_name())
-        return "{} costs {} and is currently unowned.".format(str(mon), mon.get_cost())
+            return "{} ({}-{}) costs {} and is owned by {}.".format(str(mon), mon.get_kills(), mon.get_deaths(),
+                                                                    mon.get_cost(), mon.get_owner().get_name())
+        return "{} ({}-{}) costs {} and is currently unowned.".format(str(mon), mon.get_kills(), mon.get_deaths(),
+                                                                      mon.get_cost())
 
     def get_all_pokemon(self) -> list:
         """Returns the list of all Pokemon in the league."""
@@ -141,6 +145,10 @@ class DraftLeague:
         """Returns the current phase."""
         return self._phase
 
+    def get_replay_channel(self) -> int:
+        """Returns the Discord channel for the replays of this league."""
+        return self._replay_channel
+
     def get_user(self, name) -> Union[DraftParticipant, bool]:
         """Returns the DraftParticipant of the given name."""
         for p in self._participants:
@@ -170,17 +178,19 @@ class DraftLeague:
             return "The draft has been completed."
 
         old_picker = self._pickorder[self._picking[0]]
-        minutes = (datetime.datetime.now() - self._picking[1]).total_seconds()/60
-        old_picker.add_time_to_timer(minutes, remove=True) # remove = True means remove time
+        minutes = (datetime.datetime.now() - self._picking[1]).total_seconds() / 60
+        old_picker.add_time_to_timer(minutes, remove=True)  # remove = True means remove time
 
         self._picking[0] += 1
         self._picking[1] = datetime.datetime.now().replace(microsecond=0)
 
         current_picker = self._pickorder[self._picking[0]]
-        current_picker.add_time_to_timer(self._increment) # add 3 hours to user's timer
+        current_picker.add_time_to_timer(self._increment)  # add 3 hours to user's timer
 
         return "Now picking: <@{}>. Deadline: {} ({} minutes)".format(
-            self._pickorder[self._picking[0]].get_discord(), (self._picking[1] + current_picker.get_timer()).replace(microsecond=0), round(current_picker.get_timer().total_seconds()/60))
+            self._pickorder[self._picking[0]].get_discord(),
+            (self._picking[1] + current_picker.get_timer()).replace(microsecond=0),
+            round(current_picker.get_timer().total_seconds() / 60))
 
     def save(self):
         """Pickles and saves the league in a text file."""
@@ -200,6 +210,10 @@ class DraftLeague:
         """Sets the pick order for the draft."""
         self._pickorder = 6 * (self._participants + self._participants[::-1])
         self._picking = [0, datetime.datetime.now().replace(microsecond=0)]
+
+    def set_replay_channel(self, channel: int):
+        """Sets the replay channel for the draft."""
+        self._replay_channel = channel
 
     def shuffle(self):
         """Shuffles the order of the participants."""
