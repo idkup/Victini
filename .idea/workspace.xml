@@ -64,7 +64,7 @@
       <recent name="C:\Users\001\PycharmProjects\Victini\files" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.bot">
+  <component name="RunManager" selected="Python.update_points">
     <configuration name="BattleParticipant" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Victini" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -172,11 +172,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.update_points" />
         <item itemvalue="Python.bot" />
         <item itemvalue="Python.ParseReplay" />
         <item itemvalue="Python.BattlePokemon" />
         <item itemvalue="Python.BattleParticipant" />
-        <item itemvalue="Python.update_points" />
       </list>
     </recent_temporary>
   </component>
@@ -328,22 +328,22 @@
       <screen x="0" y="0" width="1280" height="680" />
     </state>
     <state x="424" y="145" key="#com.intellij.fileTypes.FileTypeChooser/0.0.1280.680@0.0.1280.680" timestamp="1637951769299" />
-    <state width="1259" height="253" key="GridCell.Tab.0.bottom" timestamp="1638128434632">
+    <state width="1259" height="253" key="GridCell.Tab.0.bottom" timestamp="1638132755933">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1638128434632" />
-    <state width="1259" height="253" key="GridCell.Tab.0.center" timestamp="1638128434632">
+    <state width="1259" height="253" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1638132755933" />
+    <state width="1259" height="253" key="GridCell.Tab.0.center" timestamp="1638132755933">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1638128434632" />
-    <state width="1259" height="253" key="GridCell.Tab.0.left" timestamp="1638128434632">
+    <state width="1259" height="253" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1638132755933" />
+    <state width="1259" height="253" key="GridCell.Tab.0.left" timestamp="1638132755933">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1638128434632" />
-    <state width="1259" height="253" key="GridCell.Tab.0.right" timestamp="1638128434632">
+    <state width="1259" height="253" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1638132755933" />
+    <state width="1259" height="253" key="GridCell.Tab.0.right" timestamp="1638132755933">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1638128434632" />
+    <state width="1259" height="253" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1638132755933" />
     <state width="1259" height="204" key="GridCell.Tab.1.bottom" timestamp="1631820939539">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
@@ -360,10 +360,10 @@
       <screen x="0" y="0" width="1280" height="680" />
     </state>
     <state width="1259" height="204" key="GridCell.Tab.1.right/0.0.1280.680@0.0.1280.680" timestamp="1631820939539" />
-    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup" timestamp="1638124690923">
+    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup" timestamp="1638130930076">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup/0.0.1280.680@0.0.1280.680" timestamp="1638124690923" />
+    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup/0.0.1280.680@0.0.1280.680" timestamp="1638130930076" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

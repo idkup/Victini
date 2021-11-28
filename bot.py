@@ -542,9 +542,12 @@ async def release(ctx, *args):
 async def replay(ctx, replay_url):
     """Uploads a replay to be parsed."""
     for l in leagues:
-        if ctx.channel.id == l.get_replay_channel():
-            league = l
-            break
+        try:
+            if ctx.channel.id == l.get_replay_channel():
+                league = l
+                break
+        except AttributeError:
+            pass
     else:
         return await ctx.send("This is not a replay channel.")
     if league.get_phase() < 2:
