@@ -431,7 +431,7 @@ async def kills(ctx, l_id):
             name = p.get_owner().get_name()
         else:
             name = "Free Agent"
-        msg += f"{i}. {str(p)} ({name}): {p.get_kills()} kills | {p.get_deaths()} deaths\n"
+        msg += f"{i}. {str(p)} ({name}): {p.get_kills()} kill(s) | {p.get_deaths()} death(s)\n"
         i += 1
     return await ctx.send(msg)
 
