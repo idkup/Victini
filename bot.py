@@ -692,6 +692,9 @@ async def substitute(ctx, old_id, new_id, new_name):
 async def on_ready():
     """Prints 'ready' when bot is online. Starts timer for draft phase."""
     bot.loop.create_task(timer())
+    for l in leagues:
+        if not l._replay_channel:
+            l._replay_channel = None
     print('ready')
 
 
