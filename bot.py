@@ -8,7 +8,7 @@ import pickle
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585,
              175763247176220672]
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='|')
 
 
 @bot.command()
@@ -542,9 +542,7 @@ async def replay(ctx, replay_url):
             if matches == 6:
                 for m in match_list:
                     m[0].add_kills(m[1].direct_kills + m[1].indirect_kills)
-                    await ctx.send(f"{str(m[0])} was credited with {m[1].direct_kills + m[1].indirect_kills} kill(s).")
                     m[0].add_deaths(m[1].ko)
-                    await ctx.send(f"{str(m[0])} was assessed with {int(m[1].ko)} death(s).")
                 winner_id = participant.get_discord()
                 break
             for q in parsed_battle.loser.team:

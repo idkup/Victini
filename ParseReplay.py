@@ -138,7 +138,7 @@ def parse_replay(msg):
             while log[i] != '|' and "|move|" not in log[i]:
                 if "|0 fnt" in log[i]:
                     attacker.direct_kills += 1
-                elif "|-status|" in log[i]:
+                elif "|-status|" in log[i] and "move: Rest" not in log[i]:
                     defender.status_induced = attacker
 
                 i += 1
@@ -187,6 +187,20 @@ def parse_replay(msg):
             elif "0 fnt|[from] Sandstorm" in l or "0 fnt|[from] Hail" in l:
                 if player != damaging_weather[1]:
                     damaging_weather[0].indirect_kills += 1
+            elif "fnt|[from] Leech Seed|" in l:
+                ls = l.split('|')
+                nickname = ls[5][10:]
+                if player == 1:
+                    for p in p2.team:
+                        if p.nickname == nickname:
+                            p.indirect_kills += 1
+                            break
+                elif player == 2:
+                    for p in p1.team:
+                        if p.nickname == nickname:
+                            p.indirect_kills += 1
+                            break
+
         elif "|faint|" in l:
             ls = l.split('|')
             player = int(ls[2][1])
