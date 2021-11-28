@@ -414,6 +414,29 @@ async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120):
 
 
 @bot.command()
+async def kills(ctx, l_id):
+    """Displays the kill leaderboard for the league."""
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    msg = f"**Kill Leaderboard (League {l_id}):**\n"
+    league.get_all_pokemon().sort(key=lambda x: x.get_kills(), reverse=True)
+    top_10 = league.get_all_pokemon()[:10]
+    i = 1
+    for p in top_10:
+        if p.get_owner():
+            name = p.get_owner().get_name()
+        else:
+            name = "Free Agent"
+        msg += f"{i}. {str(p)} ({name}): {p.get_kills()} kills | {p.get_deaths()} deaths\n"
+        i += 1
+    return await ctx.send(msg)
+
+
+@bot.command()
 async def participants(ctx, l_id):
     """Wrapper for DraftLeague.get_participants()."""
     for l in leagues:
