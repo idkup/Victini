@@ -561,7 +561,7 @@ async def replay(ctx, replay_url):
         match_list = []
         for p in participant.get_pokemon():
             for q in parsed_battle.winner.team:
-                if (str(p) in q.species or q.species in str(p)) and (str(p) != "Porygon" and q.species != "Porygon") or (str(p) == "Porygon" and q.species == "Porygon"):
+                if (str(p) in q.species or q.species in str(p)) and ((str(p) == "Porygon") == (q.species == "Porygon")):
                     matches += 1
                     match_list.append((p, q))
                     break
@@ -572,7 +572,7 @@ async def replay(ctx, replay_url):
                 winner_id = participant.get_discord()
                 break
             for q in parsed_battle.loser.team:
-                if (str(p) in q.species or q.species in str(p)) and (str(p) != "Porygon" and q.species != "Porygon") or (str(p) == "Porygon" and q.species == "Porygon"):
+                if (str(p) in q.species or q.species in str(p)) and ((str(p) == "Porygon") == (q.species == "Porygon")):
                     matches += 1
                     match_list.append((p, q))
                     break
