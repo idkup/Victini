@@ -43,7 +43,7 @@ def parse_replay(msg):
                     elif p == "Arceus-*":
                         p = "Arceus"
                     p2.team.append(BattlePokemon(p))
-        elif '|switch|' in l:
+        elif '|switch|' in l or '|drag|' in l:
             ls = l.split('|')
             player = int(ls[2][1])
             nickname = ls[2][5:]
@@ -97,7 +97,7 @@ def parse_replay(msg):
                         attacker = p
                         break
                 else:
-                    raise Exception("Attacker not found")
+                    raise Exception(f"Attacker not found: {l}")
                 for p in p2.team:
                     if p.nickname == defender_name:
                         defender = p
@@ -108,7 +108,7 @@ def parse_replay(msg):
                         attacker = p
                         break
                 else:
-                    raise Exception("Attacker not found")
+                    raise Exception(f"Attacker not found: {l}")
                 for p in p1.team:
                     if p.nickname == defender_name:
                         defender = p
@@ -138,8 +138,11 @@ def parse_replay(msg):
             while log[i] != '|' and "|move|" not in log[i]:
                 if "|0 fnt" in log[i]:
                     attacker.direct_kills += 1
-                elif "|-status|" in log[i] and "move: Rest" not in log[i]:
-                    defender.status_induced = attacker
+                elif "|-status|" in log[i] and "move: Rest" not in log[i] or "|-start|" in log[i] and "Substitute" not in log[i]:
+                    try:
+                        defender.status_induced = attacker
+                    except AttributeError:
+                        raise Exception(f"Defender not found. {l}")
 
                 i += 1
         elif "|detailschange|" in l:
@@ -171,7 +174,7 @@ def parse_replay(msg):
                     if p.nickname == nickname:
                         p.ko = True
                         break
-            if "0 fnt|[from] psn" in l or "0 fnt|[from] brn" in l:
+            if "0 fnt|[from] psn" in l or "0 fnt|[from] brn" in l or "0 fnt|[from] confusion":
                 if player == 1:
                     for p in p1.team:
                         if p.nickname == nickname:
@@ -187,7 +190,7 @@ def parse_replay(msg):
             elif "0 fnt|[from] Sandstorm" in l or "0 fnt|[from] Hail" in l:
                 if player != damaging_weather[1]:
                     damaging_weather[0].indirect_kills += 1
-            elif "fnt|[from] Leech Seed|" in l:
+            elif "0 fnt|[from] Leech Seed|" in l:
                 ls = l.split('|')
                 nickname = ls[5][10:]
                 if player == 1:
