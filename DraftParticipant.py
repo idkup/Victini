@@ -22,7 +22,7 @@ class DraftParticipant:
         return """{}'s draft in league {} ({} points remaining):
 ---
 {}""".format(self._name, self._league.get_id(), self._points,
-             "\n".join(["{} ({})".format(x, x.get_cost()) for x in self._pokemon]))
+             "\n".join(["{} ({}-{}) [{}p]".format(x, x.get_kills, x.get_deaths, x.get_cost()) for x in self._pokemon]))
 
     def add_showdown(self, s_id: str):
         """Adds a Showdown ID to a participant."""
