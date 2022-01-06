@@ -6,6 +6,7 @@ class BattlePokemon:
         self.indirect_kills = 0
         self.ko = False
         self.status_induced = None
+        self.seeded = None
 
     def __repr__(self):
         return f"{self.nickname} ({self.species}), kills: {self.direct_kills} direct, {self.indirect_kills} indirect, fainted: {self.ko}"

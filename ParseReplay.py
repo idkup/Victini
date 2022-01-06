@@ -133,10 +133,12 @@ def parse_replay(msg):
                     p1.tspikes_set = attacker
             elif ls[3] == "Hail" or ls[3] == "Sandstorm":
                 damaging_weather = (attacker, attacking_player)
+            elif ls[3] == "Leech Seed":
+                defender.seeded = attacker
 
             i = line + 1
             while log[i] != '|' and "|move|" not in log[i]:
-                if "|0 fnt" in log[i]:
+                if "|0 fnt" in log[i] and "|[from] recoil" not in log[i]:
                     attacker.direct_kills += 1
                 elif "|-status|" in log[i] and "move: Rest" not in log[i] or "|-start|" in log[i] and "Substitute" not in log[i]:
                     try:
@@ -174,7 +176,7 @@ def parse_replay(msg):
                     if p.nickname == nickname:
                         p.ko = True
                         break
-            if "0 fnt|[from] psn" in l or "0 fnt|[from] brn" in l or "0 fnt|[from] confusion":
+            if "0 fnt|[from] psn" in l or "0 fnt|[from] brn" in l or "0 fnt|[from] confusion" in l:
                 if player == 1:
                     for p in p1.team:
                         if p.nickname == nickname:
@@ -192,16 +194,18 @@ def parse_replay(msg):
                     damaging_weather[0].indirect_kills += 1
             elif "0 fnt|[from] Leech Seed|" in l:
                 ls = l.split('|')
-                nickname = ls[5][10:]
+                nickname = ls[2][5:]
                 if player == 1:
-                    for p in p2.team:
-                        if p.nickname == nickname:
-                            p.indirect_kills += 1
-                            break
-                elif player == 2:
                     for p in p1.team:
                         if p.nickname == nickname:
-                            p.indirect_kills += 1
+                            if p.seeded:
+                                p.seeded.indirect_kills += 1
+                            break
+                elif player == 2:
+                    for p in p2.team:
+                        if p.nickname == nickname:
+                            if p.seeded:
+                                p.seeded.indirect_kills += 1
                             break
 
         elif "|faint|" in l:
