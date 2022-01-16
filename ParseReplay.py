@@ -147,11 +147,7 @@ def parse_replay(msg):
                     try:
                         defender.status_induced = attacker
                     except AttributeError:
-                        if "Perish Song" in l:
-                            pass
-                        else:
-                            raise Exception(f"Defender not found. {l}")
-
+                        pass
                 i += 1
         elif "|detailschange|" in l:
             ls = l.split('|')
