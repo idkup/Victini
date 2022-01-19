@@ -141,7 +141,7 @@ def parse_replay(msg):
 
             i = line + 1
             while log[i] != '|' and "|move|" not in log[i]:
-                if "|0 fnt" in log[i] and not ("|[from] recoil" in log[i] or "|[from] item: " in log[i]):
+                if "|0 fnt" in log[i] and not ("|[from] Recoil" in log[i] or "|[from] item: " in log[i]):
                     attacker.direct_kills += 1
                 elif "|-status|" in log[i] and "move: Rest" not in log[i] or "|-start|" in log[i] and "Substitute" not in log[i]:
                     try:
