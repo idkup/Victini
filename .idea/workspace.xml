@@ -20,7 +20,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="86caf51d-684c-442f-9809-7752a33b921b" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/ParseReplay.py" beforeDir="false" afterPath="$PROJECT_DIR$/ParseReplay.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,7 +54,7 @@
   <component name="PropertiesComponent">
     <property name="ASKED_SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../PycharmProjects/test/update_points.py" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../winnie/bot.py" />
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="project.propVCSSupport.Mappings" />
   </component>
@@ -327,6 +327,10 @@
       <screen x="0" y="0" width="1280" height="680" />
     </state>
     <state x="424" y="145" key="#com.intellij.fileTypes.FileTypeChooser/0.0.1280.680@0.0.1280.680" timestamp="1637951769299" />
+    <state x="421" y="96" key="FileChooserDialogImpl" timestamp="1642632355252">
+      <screen x="0" y="0" width="1280" height="680" />
+    </state>
+    <state x="421" y="96" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1642632355252" />
     <state width="1259" height="253" key="GridCell.Tab.0.bottom" timestamp="1641433613203">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
@@ -360,6 +364,11 @@
           <url>file://$PROJECT_DIR$/bot.py</url>
           <line>241</line>
           <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/ParseReplay.py</url>
+          <line>144</line>
+          <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
