@@ -30,7 +30,7 @@ def parse_replay(msg):
                     elif p == "Arceus-*":
                         p = "Arceus"
                     elif p == "Urshifu-*":
-                        p = "Urshifu"
+                        p = "Urshifu-Rapid-Strike"
                     p1.team.append(BattlePokemon(p))
             elif '|p2|' in l:
                 try:
@@ -41,6 +41,8 @@ def parse_replay(msg):
                         p = "Silvally"
                     elif p == "Arceus-*":
                         p = "Arceus"
+                    elif p == "Urshifu-*":
+                        p = "Urshifu-Rapid-Strike"
                     p2.team.append(BattlePokemon(p))
         elif '|switch|' in l or '|drag|' in l:
             ls = l.split('|')
