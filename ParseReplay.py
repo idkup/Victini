@@ -29,10 +29,8 @@ def parse_replay(msg):
                         p = "Silvally"
                     elif p == "Arceus-*":
                         p = "Arceus"
-                    elif p == "Urshifu-Rapid-Strike":
-                        p = "Urshifu-Rapid"
-                    elif p == "Urshifu-Single-Strike":
-                        p = "Urshifu-Single"
+                    elif p == "Urshifu-Rapid-Strike" or p == "Urshifu-Single-Strike":
+                        p = "Urshifu"
                     p1.team.append(BattlePokemon(p))
             elif '|p2|' in l:
                 try:
