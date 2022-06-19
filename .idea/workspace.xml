@@ -23,7 +23,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="86caf51d-684c-442f-9809-7752a33b921b" name="Default Changelist" comment="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)">
-      <change beforePath="$PROJECT_DIR$/files/8_new.json" beforeDir="false" afterPath="$PROJECT_DIR$/files/8_new.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ParseReplay.py" beforeDir="false" afterPath="$PROJECT_DIR$/ParseReplay.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -373,7 +375,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/ParseReplay.py</url>
-          <line>144</line>
+          <line>145</line>
           <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>

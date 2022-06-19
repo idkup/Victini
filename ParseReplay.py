@@ -4,9 +4,6 @@ from ParsedBattle import ParsedBattle
 import json
 import requests
 
-message = "https://replay.pokemonshowdown.com/gen7anythinggoes-976199069"
-
-
 def parse_replay(msg):
     url = msg + ".json"
 
@@ -32,6 +29,10 @@ def parse_replay(msg):
                         p = "Silvally"
                     elif p == "Arceus-*":
                         p = "Arceus"
+                    elif p == "Urshifu-Rapid-Strike":
+                        p = "Urshifu-Rapid"
+                    elif p == "Urshifu-Single-Strike":
+                        p = "Urshifu-Single"
                     p1.team.append(BattlePokemon(p))
             elif '|p2|' in l:
                 try:
