@@ -31,7 +31,6 @@ def parse_replay(msg):
                         p = "Arceus"
                     elif p == "Urshifu-*":
                         p = "Urshifu"
-                        print("asdf")
                     p1.team.append(BattlePokemon(p))
             elif '|p2|' in l:
                 try:
