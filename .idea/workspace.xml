@@ -23,7 +23,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="86caf51d-684c-442f-9809-7752a33b921b" name="Default Changelist" comment="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)">
-      <change beforePath="$PROJECT_DIR$/ParseReplay.py" beforeDir="false" afterPath="$PROJECT_DIR$/ParseReplay.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -62,7 +62,7 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../winnie/bot.py" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../PycharmProjects/test" />
     <property name="settings.editor.selected.configurable" value="project.propVCSSupport.Mappings" />
   </component>
   <component name="RecentsManager">
@@ -327,36 +327,6 @@
     <MESSAGE value="access to other draftleague fields" />
     <MESSAGE value="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)" />
     <option name="LAST_COMMIT_MESSAGE" value="start work on bot, DraftLeague improvements, DraftParticipant improvements, Tier -&gt; NoAlias (No more Mega Roselia)" />
-  </component>
-  <component name="WindowStateProjectService">
-    <state x="424" y="145" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1637951769299">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state x="424" y="145" key="#com.intellij.fileTypes.FileTypeChooser/0.0.1280.680@0.0.1280.680" timestamp="1637951769299" />
-    <state x="421" y="96" key="FileChooserDialogImpl" timestamp="1642632355252">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state x="421" y="96" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1642632355252" />
-    <state width="1259" height="253" key="GridCell.Tab.0.bottom" timestamp="1641433613203">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1641433613203" />
-    <state width="1259" height="253" key="GridCell.Tab.0.center" timestamp="1641433613203">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1641433613203" />
-    <state width="1259" height="253" key="GridCell.Tab.0.left" timestamp="1641433613203">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1641433613203" />
-    <state width="1259" height="253" key="GridCell.Tab.0.right" timestamp="1641433613203">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state width="1259" height="253" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1641433613203" />
-    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup" timestamp="1638130930076">
-      <screen x="0" y="0" width="1280" height="680" />
-    </state>
-    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup/0.0.1280.680@0.0.1280.680" timestamp="1638130930076" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
