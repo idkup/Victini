@@ -475,7 +475,13 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         picker.set_next_pick([])
         return await ctx.send("Priority for automatic drafting cleared.")
     if key.lower() == "add":
-        np.append((" ".join(args), rd))
+        pick = " ".join(args)
+        for mon in league.get_all_pokemon():
+            if str(mon).lower() == pick.strip().lower():
+                break
+        else:
+            return await ctx.send("The Pokemon you are attempting to predraft is not recognized!")
+        np.append(pick, rd)
         picker.set_next_pick(np)
     if key.lower() == "remove":
         for p in np:
