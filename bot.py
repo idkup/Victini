@@ -481,7 +481,7 @@ async def predraft(ctx, l_id, key, rd=0, *args):
                 break
         else:
             return await ctx.send("The Pokemon you are attempting to predraft is not recognized!")
-        np.append(pick, rd)
+        np.append((pick, rd))
         picker.set_next_pick(np)
     if key.lower() == "remove":
         for p in np:
