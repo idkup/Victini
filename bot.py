@@ -87,6 +87,24 @@ async def debug_cost(ctx, mon, cost):
 
 
 @bot.command()
+async def debug_rename(ctx, mon, name):
+    """Changes the name of a specific Pokemon in that DraftLeague. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_channel() == ctx.channel.id:
+            league = l
+            break
+    else:
+        return await ctx.send("This is not a drafting channel!")
+    for p in league.get_all_pokemon():
+        if str(p).lower() == mon.lower():
+            p.set_name(name)
+            return await ctx.send("{} is now {}.".format(mon, name))
+    return await ctx.send("Could not find {}".format(mon))
+
+
+@bot.command()
 async def debug_draft(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
 
