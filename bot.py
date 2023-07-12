@@ -275,7 +275,7 @@ async def debug_add(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     player.set_mon(to_add)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_release, player.get_discord()))
+    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_add, player.get_discord()))
 
 
 @bot.command()
