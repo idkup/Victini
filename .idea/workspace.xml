@@ -349,7 +349,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/bot.py</url>
-          <line>343</line>
+          <line>347</line>
           <option name="timeStamp" value="4" />
         </line-breakpoint>
       </breakpoints>

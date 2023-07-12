@@ -324,18 +324,22 @@ async def find(ctx, l_id, *args):
 
 
 @bot.command()
-async def forcedraft(ctx, *args):
+async def forcedraft(ctx, l_id, d_id, *args):
     """Admin command to draft for an AFK player."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
     for l in leagues:
-        if l.get_channel() == ctx.channel.id:
+        if l.get_id() == int(l_id):
             league = l
             break
     else:
-        return await ctx.send("This is not a drafting channel.")
-    if league.get_phase() != 1:
-        return await ctx.send("It is not the drafting phase!")
+        return await ctx.send("Invalid league ID.")
+    for p in league.get_participants():
+        if p.get_discord() == int(d_id):
+            player = p
+            break
+    else:
+        return await ctx.send("The specified ID is not in this draft!")
     name = " ".join(args)
     picker = league.get_pickorder()[league.get_picking()[0]]
     if name == "SKIP":
@@ -347,7 +351,7 @@ async def forcedraft(ctx, *args):
             break
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
-    await ctx.send(league.draft(picker, to_draft))
+    await ctx.send(league.draft(player, to_draft))
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
