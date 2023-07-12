@@ -251,7 +251,7 @@ async def debug_points(ctx, l_id, pts):
 
 
 @bot.command()
-async def debug_add(ctx, l_id, d_id, args):
+async def debug_add(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
