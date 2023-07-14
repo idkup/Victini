@@ -51,6 +51,8 @@ def parse_replay(msg):
                         p = "Dudunsparce"
                     elif p == "Maushold-*":
                         p = "Maushold"
+                    elif p == "Greninja-*":
+                        p = "Greninja"
                     p2.team.append(BattlePokemon(p))
         elif '|switch|' in l or '|drag|' in l:
             ls = l.split('|')
