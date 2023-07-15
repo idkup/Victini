@@ -4,6 +4,7 @@ from ParsedBattle import ParsedBattle
 import json
 import requests
 
+
 def parse_replay(msg):
     url = msg + ".json"
 
@@ -22,44 +23,20 @@ def parse_replay(msg):
         if '|poke|' in l:
             if '|p1|' in l:
                 try:
-                    p1.team.append(BattlePokemon(l[9:l.index(',')]))
+                    p = l[9:l.index(',')]
                 except ValueError:
                     p = l[9:l.index('|', 9)]
-                    if p == "Silvally-*":
-                        p = "Silvally"
-                    elif p == "Arceus-*":
-                        p = "Arceus"
-                    elif p == "Urshifu-*":
-                        p = "Urshifu"
-                    elif p == "Dudunsparce-*":
-                        p = "Dudunsparce"
-                    elif p == "Maushold-*":
-                        p = "Maushold"
-                    elif p == "Greninja-*":
-                        p = "Greninja"
-                    elif p == "Zamazenta-*":
-                        p = "Zamazenta"
-                    p1.team.append(BattlePokemon(p))
+                if p[-2:] == "-*":
+                    p = p[:-2]
+                p1.team.append(BattlePokemon(p))
             elif '|p2|' in l:
                 try:
-                    p2.team.append(BattlePokemon(l[9:l.index(',')]))
+                    p = l[9:l.index(',')]
                 except ValueError:
                     p = l[9:l.index('|', 9)]
-                    if p == "Silvally-*":
-                        p = "Silvally"
-                    elif p == "Arceus-*":
-                        p = "Arceus"
-                    elif p == "Urshifu-*":
-                        p = "Urshifu"
-                    elif p == "Dudunsparce-*":
-                        p = "Dudunsparce"
-                    elif p == "Maushold-*":
-                        p = "Maushold"
-                    elif p == "Greninja-*":
-                        p = "Greninja"
-                    elif p == "Zamazenta-*":
-                        p = "Zamazenta"
-                    p2.team.append(BattlePokemon(p))
+                if p[-2:] == "-*":
+                    p = p[:-2]
+                p2.team.append(BattlePokemon(p))
         elif '|switch|' in l or '|drag|' in l:
             ls = l.split('|')
             player = int(ls[2][1])
@@ -114,7 +91,7 @@ def parse_replay(msg):
                         attacker = p
                         break
                 else:
-                    raise Exception(f"Attacker not found: {l}")
+                    raise Exception(f"Attacker not found: {l}\n{p1.team}\n{p2.team}")
                 for p in p2.team:
                     if p.nickname == defender_name:
                         defender = p
@@ -125,7 +102,7 @@ def parse_replay(msg):
                         attacker = p
                         break
                 else:
-                    raise Exception(f"Attacker not found: {l}")
+                    raise Exception(f"Attacker not found: {l}\n{p1.team}\n{p2.team}")
                 for p in p1.team:
                     if p.nickname == defender_name:
                         defender = p
