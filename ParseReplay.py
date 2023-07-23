@@ -37,7 +37,7 @@ def parse_replay(msg):
                 if p[-2:] == "-*":
                     p = p[:-2]
                 p2.team.append(BattlePokemon(p))
-        elif '|switch|' in l or '|drag|' in l:
+        elif '|switch|' in l or '|drag|' in l or  '|replace|' in l:
             ls = l.split('|')
             player = int(ls[2][1])
             nickname = ls[2][5:]
