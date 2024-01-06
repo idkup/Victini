@@ -12,7 +12,7 @@ def parse_replay(msg):
     replay_json = json.loads(replay_file)
 
     p1 = BattleParticipant(replay_json["players"][0])
-    p2 = BattleParticipant(replay_json["p2"]["players"][1])
+    p2 = BattleParticipant(replay_json["players"][1])
     winner = None
 
     log = replay_json["log"].split('\n')
