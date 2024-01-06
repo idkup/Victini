@@ -635,8 +635,8 @@ async def replay(ctx, replay_url):
                 loser_id = participant.get_discord()
                 break
 
-    winner_team_stats = "\n".join(str(p) for p in parsed_battle.winner.team)
-    loser_team_stats = "\n".join(str(p) for p in parsed_battle.loser.team)
+    winner_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.winner.team)
+    loser_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.loser.team)
     return await ctx.send(f"""Result: ||**<@{winner_id}>** won against **<@{loser_id}>** {
     sum(map(check_alive, parsed_battle.winner.team))} - {sum(map(check_alive, parsed_battle.loser.team))}||
 
