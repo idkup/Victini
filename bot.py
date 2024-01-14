@@ -514,9 +514,9 @@ async def kills(ctx, l_id):
         return await ctx.send("Invalid league ID.")
     msg = f"**Kill Leaderboard (League {l_id}):**\n"
     league.get_all_pokemon().sort(key=lambda x: x.get_kills(), reverse=True)
-    top_10 = league.get_all_pokemon()[:10]
+    top_20 = league.get_all_pokemon()[:20]
     i = 1
-    for p in top_10:
+    for p in top_20:
         if p.get_owner():
             name = p.get_owner().get_name()
         else:
