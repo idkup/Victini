@@ -251,7 +251,7 @@ async def debug_points(ctx, l_id, pts):
 
 
 @bot.command()
-async def debug_add(ctx, l_id, d_id, *args):
+async def debug_add_after_draft(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
     if ctx.author.id not in admin_ids:
         return await ctx.send("This is an admin-only command.")
@@ -301,9 +301,53 @@ async def debug_release(ctx, l_id, d_id, *args):
             to_release = mon
             break
     else:
-        return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
+        return await ctx.send("The Pokemon you are attempting to remove is not recognized!")
     player.remove_mon(to_release)
     return await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
+
+
+@bot.command()
+async def debug_kills(ctx, l_id, number, *args):
+    """Adjusts kill count of a Pokemon in a league. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    name = " ".join(args)
+    for mon in league.get_all_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_adjust = mon
+            break
+    else:
+        return await ctx.send("The Pokemon you are attempting to find is not recognized!")
+    to_adjust.add_kills(int(number))
+    return await ctx.send("Attempted to add {} kills to {}.".format(number, to_adjust))
+
+
+@bot.command()
+async def debug_deaths(ctx, l_id, number, *args):
+    """Adjusts death count of a Pokemon in a league. Admin command."""
+    if ctx.author.id not in admin_ids:
+        return await ctx.send("This is an admin-only command.")
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    name = " ".join(args)
+    for mon in league.get_all_pokemon():
+        if str(mon).lower() == name.strip().lower():
+            to_adjust = mon
+            break
+    else:
+        return await ctx.send("The Pokemon you are attempting to find is not recognized!")
+    to_adjust.add_deaths(int(number))
+    return await ctx.send("Attempted to add {} deaths to {}.".format(number, to_adjust))
 
 
 @bot.command()
@@ -721,7 +765,7 @@ async def start_draft(ctx):
     first_participant.add_time_to_timer(league._increment)
 
     return await ctx.send("Now picking: <@{}>. Deadline: {} ({} minutes)".format(
-            first_participant.get_discord(), (league._picking[1] + first_participant.get_timer()).replace(microsecond=0), 
+            first_participant.get_discord(), (league._picking[1] + first_participant.get_timer()).replace(microsecond=0),
             round(first_participant.get_timer().total_seconds()/60)))
 
 
