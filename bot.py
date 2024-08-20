@@ -5,6 +5,7 @@ import asyncio
 from discord import Embed
 from discord.ext import commands
 import pickle
+import requests
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585,
              175763247176220672, 142796252243951616, 974026524003024917]
@@ -462,6 +463,58 @@ async def forceregister(ctx, d_id, name):
     league.add_participant(DraftParticipant(league, int(d_id), name,
                                             league.get_start_timer(), league.get_start_points()))
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
+
+
+@bot.command(aliases=["mu", "gm"])
+async def generate_matchup(ctx, l_id, *args):
+    """Generates a matchup embed if possible."""
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            league = l
+            break
+    else:
+        return await ctx.send("Invalid league ID.")
+    p1 = args[0]
+    p2 = args[1]
+    p1_user = league.get_user(p1)
+    if p1_user is False:
+        return await ctx.send("{} is not participating in the draft.".format(p1))
+    p2_user = league.get_user(p2)
+    if p2_user is False:
+        return await ctx.send("{} is not participating in the draft.".format(p2))
+    p1_mons = p1_user.get_pokemon()
+    p2_mons = p2_user.get_pokemon()
+    p1_speeds = {}
+    p2_speeds = {}
+    for p in p1_mons:
+        name = str(p)
+        name = name.replace(" ", "-")
+        name = "Urshifu-Single-Strike" if name == "Urshifu" else name
+        name = "Oricorio-Pom-Pom" if name == "Oricorio" else name
+        name = "Terapagos-Terastal" if name == "Terapagos" else name
+        name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
+        name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
+        api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+        p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+    for p in p2_mons:
+        name = str(p)
+        name = name.replace(" ", "-")
+        name = "Urshifu-Single-Strike" if name == "Urshifu" else name
+        name = "Oricorio-Pom-Pom" if name == "Oricorio" else name
+        name = "Terapagos-Terastal" if name == "Terapagos" else name
+        name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
+        name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
+        api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+        p2_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+    p1_speeds = dict(sorted(p1_speeds.items(), key=lambda item: item[1], reverse=True))
+    p2_speeds = dict(sorted(p2_speeds.items(), key=lambda item: item[1], reverse=True))
+    p1_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p1_speeds.items()]
+    p2_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p2_speeds.items()]
+    e = Embed(title=f"{p1} vs {p2}")
+    e.add_field(name=p1, value="\n".join(p1_speedstrings), inline=True)
+    e.add_field(name="\u200B", value="\u200B", inline=True)
+    e.add_field(name=p2, value="\n".join(p2_speedstrings), inline=True)
+    await ctx.send(embed=e)
 
 
 @bot.command()
