@@ -494,7 +494,7 @@ async def generate_matchup(ctx, l_id, *args):
         name = "Terapagos-Terastal" if name == "Terapagos" else name
         name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
         name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
-        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus"] else ""
+        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
         api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
         p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
     for p in p2_mons:
