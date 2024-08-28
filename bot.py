@@ -489,15 +489,19 @@ async def generate_matchup(ctx, l_id, *args):
     for p in p1_mons:
         name = str(p)
         name = name.replace(" ", "-")
-        name = "Urshifu-Single-Strike" if name == "Urshifu" else name
-        name = "Oricorio-Pom-Pom" if name == "Oricorio" else name
-        name = "Terapagos-Terastal" if name == "Terapagos" else name
+        name += "-Single-Strike" if name == "Urshifu" else ""
+        name += "-Pom-Pom" if name == "Oricorio" else ""
+        name += "-Terastal" if name == "Terapagos" else ""
         name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
         name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
         name += "-Ordinary" if name == "Keldeo" else ""
         name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
-        api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
-        p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+        try:
+            api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+            p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+        except Exception:
+            return await ctx.send(f"failed api call: {name}")
+
     for p in p2_mons:
         name = str(p)
         name = name.replace(" ", "-")
