@@ -516,10 +516,9 @@ async def generate_matchup(ctx, l_id, *args):
         name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
         try:
             api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
-            p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+            p2_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
         except json.decoder.JSONDecodeError:
             return await ctx.send(f"failed api call: {name}")
-        p2_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
     p1_speeds = dict(sorted(p1_speeds.items(), key=lambda item: item[1], reverse=True))
     p2_speeds = dict(sorted(p2_speeds.items(), key=lambda item: item[1], reverse=True))
     p1_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p1_speeds.items()]
