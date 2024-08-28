@@ -507,13 +507,18 @@ async def generate_matchup(ctx, l_id, *args):
     for p in p2_mons:
         name = str(p)
         name = name.replace(" ", "-")
-        name = "Urshifu-Single-Strike" if name == "Urshifu" else name
-        name = "Oricorio-Pom-Pom" if name == "Oricorio" else name
-        name = "Terapagos-Terastal" if name == "Terapagos" else name
+        name += "-Single-Strike" if name == "Urshifu" else ""
+        name += "-Pom-Pom" if name == "Oricorio" else ""
+        name += "-Terastal" if name == "Terapagos" else ""
         name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
         name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
-        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus"] else ""
-        api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+        name += "-Ordinary" if name == "Keldeo" else ""
+        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
+        try:
+            api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+            p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
+        except json.decoder.JSONDecodeError:
+            return await ctx.send(f"failed api call: {name}")
         p2_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
     p1_speeds = dict(sorted(p1_speeds.items(), key=lambda item: item[1], reverse=True))
     p2_speeds = dict(sorted(p2_speeds.items(), key=lambda item: item[1], reverse=True))
