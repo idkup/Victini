@@ -1,3 +1,5 @@
+import json.decoder
+
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
 from ParseReplay import parse_replay
@@ -499,7 +501,7 @@ async def generate_matchup(ctx, l_id, *args):
         try:
             api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
             p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
-        except Exception:
+        except json.decoder.JSONDecodeError:
             return await ctx.send(f"failed api call: {name}")
 
     for p in p2_mons:
