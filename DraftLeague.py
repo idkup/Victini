@@ -28,6 +28,20 @@ class DraftLeague:
             file.close()
         self._tierlist = [DraftPokemon(k, v, "-Mega" in k or "Mega " in k) for k, v in d.items()]
 
+    def __setstate__(self, state):
+        """Restore from pickle, filling defaults for attributes added in later
+        versions so save files written by an older build unpickle cleanly
+        (e.g. _replay_channel, which older leagues predate)."""
+        self.__dict__.update({
+            "_participants": [],
+            "_missedpicks": [],
+            "_phase": 0,
+            "_picking": None,
+            "_pickorder": [],
+            "_replay_channel": None,
+        })
+        self.__dict__.update(state)
+
     def add_missed_pick(self, user: DraftParticipant):
         """Adds a missed pick to a user."""
         self._missedpicks.append(user)

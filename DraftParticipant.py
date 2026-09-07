@@ -17,6 +17,17 @@ class DraftParticipant:
         self._mega = False
         self._timer = datetime.timedelta(minutes=timer_start)
 
+    def __setstate__(self, state):
+        """Restore from pickle, filling defaults for attributes added in later
+        versions so save files written by an older build unpickle cleanly."""
+        self.__dict__.update({
+            "_showdown_id": [],
+            "_next_pick": [],
+            "_pokemon": [],
+            "_mega": False,
+        })
+        self.__dict__.update(state)
+
     def __str__(self):
         """Behavior when stringified."""
         return """{}'s draft in league {} ({} points remaining):
