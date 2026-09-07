@@ -1,6 +1,7 @@
 # Specific files
 files/key.txt
 files/leagues.txt
+files/speeds.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
