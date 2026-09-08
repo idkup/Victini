@@ -1,13 +1,14 @@
 """Renders a draft matchup as a PNG in the style of a speed-tier chart:
 
-  [ You: 3-wide grid ] [ your speeds | opp speeds ] [ Opponent: 3-wide grid ]
+  [ You: 3-wide sprite grid ] [ your speeds | opp speeds ] [ Opponent grid ]
 
-Each side shows large sprites (3 per row) with names. The centre holds two
-independent Speed ladders -- one per side, one row per mon (icon + value),
-sorted fastest first -- so tied speeds never collide and the block stays short.
+Each side is a grid of large sprites in distinct square cells (no names). The
+centre holds two independent Speed ladders -- one per side, one row per mon (icon
++ value), sorted fastest first -- stretched to the full height of the grids so
+tied speeds never collide.
 
 Pure rendering: callers pass already-fetched sprite bytes and speed values (base
-or level-50, the caller's choice), so this module makes no network calls.
+or level-scaled, the caller's choice), so this module makes no network calls.
 """
 from __future__ import annotations
 
@@ -17,25 +18,25 @@ from PIL import Image, ImageDraw, ImageFont
 
 # palette
 BLUE = (33, 97, 179)
-BLUE_DK = (23, 71, 135)
-BLUE_TINT = (225, 236, 249)
-BLUE_ALT = (238, 244, 252)
 RED = (190, 52, 52)
-RED_DK = (147, 33, 33)
-RED_TINT = (250, 227, 227)
-RED_ALT = (252, 240, 240)
+BLUE_TINT = (223, 235, 249)
+BLUE_ALT = (236, 243, 251)
+RED_TINT = (250, 226, 226)
+RED_ALT = (252, 239, 239)
+# checkerboard cell backgrounds for the sprite grids: (light, dark)
+BLUE_CHECK = ((231, 239, 250), (206, 222, 244))
+RED_CHECK = ((251, 233, 233), (245, 214, 214))
 INK = (33, 39, 46)
-MUTED = (250, 251, 253)
 WHITE = (255, 255, 255)
 
-LARGE = 96
-SMALL = 34
+LARGE = 100         # big grid sprite
+SMALL = 40          # ladder icon
 GRID_COLS = 3
 CELL_W = 150
-CELL_H = 126
-HEADER_H = 48
-LADDER_COL_W = 108
-LADDER_ROW_H = 42
+GRID_ROW_H = 124
+HEADER_H = 58
+LADDER_COL_W = 126
+LADDER_MIN_ROW = 46
 PAD = 16
 
 
@@ -48,7 +49,7 @@ def _font(size, bold=False):
     return ImageFont.load_default()
 
 
-def _img(data, size):
+def _sprite(data, size):
     if not data:
         return None
     try:
@@ -58,14 +59,6 @@ def _img(data, size):
         return None
 
 
-def _fit(draw, text, font, max_w):
-    if draw.textlength(text, font=font) <= max_w:
-        return text
-    while text and draw.textlength(text + "…", font=font) > max_w:
-        text = text[:-1]
-    return text + "…"
-
-
 def _header(draw, x0, w, text, fill, font):
     draw.rectangle([x0, 0, x0 + w, HEADER_H], fill=fill)
     tb = draw.textbbox((0, 0), text, font=font)
@@ -73,46 +66,45 @@ def _header(draw, x0, w, text, fill, font):
               text, font=font, fill=WHITE)
 
 
-def _draw_grid(img, draw, x0, rows, accent, tint, n_rows, name_f):
-    grid_w = GRID_COLS * CELL_W
+def _draw_grid(img, draw, x0, rows, accent, check, grid_rows, body_h):
+    light, dark = check
+    slot_h = body_h / grid_rows
+    for row in range(grid_rows):                 # checkerboard background
+        for col in range(GRID_COLS):
+            draw.rectangle([x0 + col * CELL_W, HEADER_H + row * slot_h,
+                            x0 + (col + 1) * CELL_W, HEADER_H + (row + 1) * slot_h],
+                           fill=(light if (row + col) % 2 == 0 else dark))
     n = len(rows)
-    draw.rectangle([x0, HEADER_H, x0 + grid_w, HEADER_H + n_rows * CELL_H], fill=tint)
     for i, r in enumerate(rows):
-        col, row = i % GRID_COLS, i // GRID_COLS
-        in_row = min(GRID_COLS, n - row * GRID_COLS)       # mons on this row
-        row_offset = (GRID_COLS - in_row) * CELL_W // 2     # center a short (last) row
-        cx, cy = x0 + row_offset + col * CELL_W, HEADER_H + row * CELL_H
-        sp = _img(r.get("sprite"), LARGE)
-        sx = cx + (CELL_W - LARGE) // 2
+        row, col = divmod(i, GRID_COLS)
+        in_row = min(GRID_COLS, n - row * GRID_COLS)
+        row_off = (GRID_COLS - in_row) * CELL_W / 2    # centre a short (last) row
+        ccx = x0 + row_off + col * CELL_W + CELL_W / 2
+        ccy = HEADER_H + (row + 0.5) * slot_h
+        sp = _sprite(r.get("sprite"), LARGE)
         if sp is not None:
-            img.paste(sp, (sx, cy + 6), sp)
+            img.paste(sp, (int(ccx - LARGE / 2), int(ccy - LARGE / 2)), sp)
         else:
-            draw.rectangle([sx, cy + 6, sx + LARGE, cy + 6 + LARGE], outline=accent, width=2)
-        label = _fit(draw, r["species"], name_f, CELL_W - 8)
-        draw.text((cx + (CELL_W - draw.textlength(label, font=name_f)) / 2, cy + LARGE + 8),
-                  label, font=name_f, fill=INK)
+            draw.text((ccx, ccy), "?", font=_font(28, bold=True), fill=accent, anchor="mm")
 
 
-def _draw_ladder(img, draw, x0, rows, accent, tint, alt, num_f, mirror):
-    """One side's speed ladder. mirror=False -> icon left, value right (your side);
-    mirror=True -> value left, icon right (opponent side)."""
+def _draw_ladder(img, draw, x0, rows, accent, tint, alt, num_f, mirror, body_h):
+    k = max(len(rows), 1)
+    slot_h = body_h / k
     for i, r in enumerate(rows):
-        y = HEADER_H + i * LADDER_ROW_H
-        draw.rectangle([x0, y, x0 + LADDER_COL_W, y + LADDER_ROW_H], fill=(alt if i % 2 else tint))
-        icon = _img(r.get("sprite"), SMALL)
-        iy = y + (LADDER_ROW_H - SMALL) // 2
+        y0 = HEADER_H + i * slot_h
+        draw.rectangle([x0, y0, x0 + LADDER_COL_W, y0 + slot_h], fill=(alt if i % 2 else tint))
+        cy = y0 + slot_h / 2
+        icon = _sprite(r.get("sprite"), SMALL)
         s = str(r["speed"])
-        sb = draw.textbbox((0, 0), s, font=num_f)
-        tw, th = sb[2] - sb[0], sb[3] - sb[1]
-        ty = y + (LADDER_ROW_H - th) / 2 - sb[1]
         if not mirror:
             if icon is not None:
-                img.paste(icon, (x0 + 6, iy), icon)
-            draw.text((x0 + LADDER_COL_W - 10 - tw, ty), s, font=num_f, fill=accent)
+                img.paste(icon, (int(x0 + 8), int(cy - SMALL / 2)), icon)
+            draw.text((x0 + LADDER_COL_W - 12, cy), s, font=num_f, fill=accent, anchor="rm")
         else:
-            draw.text((x0 + 10, ty), s, font=num_f, fill=accent)
+            draw.text((x0 + 12, cy), s, font=num_f, fill=accent, anchor="lm")
             if icon is not None:
-                img.paste(icon, (x0 + LADDER_COL_W - 6 - SMALL, iy), icon)
+                img.paste(icon, (int(x0 + LADDER_COL_W - 8 - SMALL), int(cy - SMALL / 2)), icon)
 
 
 def render_matchup(p1_name, p1_rows, p2_name, p2_rows, speed_label="Speed") -> BytesIO:
@@ -124,32 +116,30 @@ def render_matchup(p1_name, p1_rows, p2_name, p2_rows, speed_label="Speed") -> B
     center_w = 2 * LADDER_COL_W
     grid_rows = max((len(p1_rows) + GRID_COLS - 1) // GRID_COLS,
                     (len(p2_rows) + GRID_COLS - 1) // GRID_COLS, 1)
-    body_h = max(grid_rows * CELL_H,
-                 max(len(p1_rows), len(p2_rows), 1) * LADDER_ROW_H,
-                 HEADER_H)
+    max_ladder = max(len(p1_rows), len(p2_rows), 1)
+    body_h = max(grid_rows * GRID_ROW_H, max_ladder * LADDER_MIN_ROW)
+
     w = PAD + grid_w + center_w + grid_w + PAD
     h = HEADER_H + body_h + PAD
 
     img = Image.new("RGB", (w, h), WHITE)
     draw = ImageDraw.Draw(img)
-    name_f = _font(15, bold=True)
-    num_f = _font(21, bold=True)
-    head_f = _font(22, bold=True)
+    num_f = _font(30, bold=True)
+    head_f = _font(34, bold=True)
 
     left_x = PAD
     center_x = PAD + grid_w
     l2_x = center_x + LADDER_COL_W
     right_x = center_x + center_w
 
-    _draw_grid(img, draw, left_x, p1_rows, BLUE, BLUE_TINT, grid_rows, name_f)
-    _draw_ladder(img, draw, center_x, p1_rows, BLUE, BLUE_TINT, BLUE_ALT, num_f, mirror=False)
-    _draw_ladder(img, draw, l2_x, p2_rows, RED, RED_TINT, RED_ALT, num_f, mirror=True)
-    _draw_grid(img, draw, right_x, p2_rows, RED, RED_TINT, grid_rows, name_f)
+    _draw_grid(img, draw, left_x, p1_rows, BLUE, BLUE_CHECK, grid_rows, body_h)
+    _draw_ladder(img, draw, center_x, p1_rows, BLUE, BLUE_TINT, BLUE_ALT, num_f, False, body_h)
+    _draw_ladder(img, draw, l2_x, p2_rows, RED, RED_TINT, RED_ALT, num_f, True, body_h)
+    _draw_grid(img, draw, right_x, p2_rows, RED, RED_CHECK, grid_rows, body_h)
     draw.line([(l2_x, HEADER_H), (l2_x, HEADER_H + body_h)], fill=(210, 214, 220), width=1)
 
     _header(draw, left_x, grid_w, p1_name, BLUE, head_f)
-    _header(draw, center_x, LADDER_COL_W, speed_label, BLUE_DK, head_f)
-    _header(draw, l2_x, LADDER_COL_W, speed_label, RED_DK, head_f)
+    _header(draw, center_x, center_w, speed_label, (70, 70, 78), head_f)   # one merged header
     _header(draw, right_x, grid_w, p2_name, RED, head_f)
 
     out = BytesIO()

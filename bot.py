@@ -562,43 +562,67 @@ _SPEED_MODES = {
 }
 
 
+async def _speed_rows(species_iter, speed_fn):
+    """Build matchup rows from an iterable of species/slug strings."""
+    rows = []
+    for species in species_iter:
+        base = await pokeapi.base_speed(species)
+        rows.append({"species": species,
+                     "speed": speed_fn(base) if speed_fn else base,
+                     "sprite": await pokeapi.sprite_bytes(species)})
+    return rows
+
+
 @bot.command(aliases=["mu", "gm"])
-async def generate_matchup(ctx, l_id, *args):
-    """Renders a team-vs-team matchup image (sprites + per-side Speed ladders).
-    Add a trailing `l50` or `l100` to show max Level-50 / Level-100 Speed instead
-    of base Speed."""
-    league = league_by_id(l_id)
-    if league is None:
-        return await ctx.send("Invalid league ID.")
+async def generate_matchup(ctx, *args):
+    """Render a team-vs-team matchup image (sprites + per-side Speed ladders).
+    League mode:  !mu <league_id> <player1> <player2> [l50|l100]
+    Ad-hoc mode:  !mu "mon1 mon2 ..." "monA monB ..." [l50|l100]
+      names are space-delimited; hyphens are optional (samurotthisui ==
+      samurott-hisui), -m == -mega (raichu-m-y == raichu-mega-y), and multi-word
+      species are written as one word (e.g. tapukoko). Trailing l50/l100 shows
+      max Level-50 / Level-100 Speed instead of base Speed."""
     args = list(args)
     label, speed_fn = "Speed", None
     if args and args[-1].lower().lstrip("-+") in _SPEED_MODES:
         label, speed_fn = _SPEED_MODES[args.pop().lower().lstrip("-+")]
-    if len(args) < 2:
-        return await ctx.send("Usage: !mu <league_id> <player1> <player2> [l50|l100]")
-    p1, p2 = args[0], args[1]
-    p1_user = league.get_user(p1)
-    if p1_user is False:
-        return await ctx.send("{} is not participating in the draft.".format(p1))
-    p2_user = league.get_user(p2)
-    if p2_user is False:
-        return await ctx.send("{} is not participating in the draft.".format(p2))
 
-    async def rows_for(user):
-        rows = []
-        for mon in user.get_pokemon():
-            species = str(mon)
-            base = await pokeapi.base_speed(species)
-            rows.append({"species": species,
-                         "speed": speed_fn(base) if speed_fn else base,
-                         "sprite": await pokeapi.sprite_bytes(species)})
-        return rows
-
-    try:
-        p1_rows = await rows_for(p1_user)
-        p2_rows = await rows_for(p2_user)
-    except pokeapi.SpeedLookupError as e:
-        return await ctx.send(f"failed api call: {e}")
+    if len(args) == 2:
+        # ad-hoc mode: two space-delimited lists of Pokemon
+        p1, p2 = "Team 1", "Team 2"
+        toks1, toks2 = args[0].split(), args[1].split()
+        if not toks1 or not toks2:
+            return await ctx.send("Give two space-separated lists of Pokemon.")
+        slugs1 = [pokeapi.resolve_fuzzy(t) for t in toks1]
+        slugs2 = [pokeapi.resolve_fuzzy(t) for t in toks2]
+        bad = [t for t, s in zip(toks1 + toks2, slugs1 + slugs2) if s is None]
+        if bad:
+            return await ctx.send("Unrecognized Pokemon: " + ", ".join(bad))
+        try:
+            p1_rows = await _speed_rows(slugs1, speed_fn)
+            p2_rows = await _speed_rows(slugs2, speed_fn)
+        except pokeapi.SpeedLookupError as e:
+            return await ctx.send(f"failed api call: {e}")
+    elif len(args) >= 3:
+        # league mode: league_id, player1, player2
+        league = league_by_id(args[0])
+        if league is None:
+            return await ctx.send("Invalid league ID.")
+        p1, p2 = args[1], args[2]
+        p1_user = league.get_user(p1)
+        if p1_user is False:
+            return await ctx.send("{} is not participating in the draft.".format(p1))
+        p2_user = league.get_user(p2)
+        if p2_user is False:
+            return await ctx.send("{} is not participating in the draft.".format(p2))
+        try:
+            p1_rows = await _speed_rows([str(m) for m in p1_user.get_pokemon()], speed_fn)
+            p2_rows = await _speed_rows([str(m) for m in p2_user.get_pokemon()], speed_fn)
+        except pokeapi.SpeedLookupError as e:
+            return await ctx.send(f"failed api call: {e}")
+    else:
+        return await ctx.send('Usage: !mu <league_id> <p1> <p2>  —or—  '
+                              '!mu "mon1 mon2 ..." "monA monB ..."')
 
     try:
         png = matchup_image.render_matchup(p1, p1_rows, p2, p2_rows, speed_label=label)

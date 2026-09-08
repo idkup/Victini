@@ -47,6 +47,9 @@ _CODE_EXPANSIONS = {
     "day": ["midday"], "night": ["midnight"],
 }
 # Bare names whose default battle forme has a suffixed PokeAPI slug.
+# Names that ARE valid slugs but whose default we deliberately override
+# (PokeAPI's bare 'terapagos' is the small/pre-Terastal form).
+_FORCE_FORME = {"terapagos": "terapagos-terastal"}
 _DEFAULT_FORME = {
     "aegislash": "aegislash-shield", "basculin": "basculin-red-striped",
     "darmanitan": "darmanitan-standard", "dudunsparce": "dudunsparce-two-segment",
@@ -98,8 +101,12 @@ def pokeapi_name(species: str) -> str:
     base = _normalize(species)
     if not slugs:
         return base
+    if base in _FORCE_FORME and _FORCE_FORME[base] in slugs:  # override a valid-but-wrong default
+        return _FORCE_FORME[base]
     if base in slugs:
         return base
+    if base + "-mask" in slugs:            # ogerpon-wellspring == ogerpon-wellspring-mask
+        return base + "-mask"
     # gendered megas: PokeAPI orders gender before "mega" (meowstic-male-mega)
     gm = re.match(r"(.+)-mega-([mf])$", base)
     if gm:
@@ -123,6 +130,43 @@ def pokeapi_name(species: str) -> str:
         return _DEFAULT_FORME[base]
     prefixed = sorted((s for s in slugs if s.startswith(base + "-")), key=len)
     return prefixed[0] if prefixed else base
+
+
+_STRIP_RE = re.compile(r"[^a-z0-9]")           # drop hyphens/spaces/punct
+_MEGA_ALIAS_RE = re.compile(r"-m(?=-|$)")       # '-m' shorthand for '-mega'
+_stripped_slugs = None
+
+
+def _stripped_slug_map():
+    """{slug with hyphens/punct removed -> slug}, for loose matching."""
+    global _stripped_slugs
+    if _stripped_slugs is None:
+        _stripped_slugs = {}
+        for s in _valid_slugs():
+            _stripped_slugs.setdefault(_STRIP_RE.sub("", s), s)
+    return _stripped_slugs
+
+
+def resolve_fuzzy(token: str):
+    """Resolve a loosely-typed Pokemon name to a valid PokeAPI slug, or None.
+    Tolerant of missing hyphens ('samurotthisui' == 'samurott-hisui'), the
+    -m/-mega alias ('raichu-m-y' == 'raichu-mega-y' == 'raichumegay'), and
+    multi-word species written as one word ('tapukoko')."""
+    base = unicodedata.normalize("NFKD", token).encode("ascii", "ignore").decode().lower().strip()
+    if not base:
+        return None
+    expanded = _MEGA_ALIAS_RE.sub("-mega", base)
+    for cand in (expanded, base):                       # forme codes, default formes, etc.
+        slug = pokeapi_name(cand)
+        if slug in _valid_slugs():
+            return slug
+    smap = _stripped_slug_map()                          # hyphen-insensitive match
+    for cand in (expanded, base):
+        key = _STRIP_RE.sub("", cand)
+        hit = smap.get(key) or smap.get(key + "mask")    # ogerponwellspring -> ...-mask
+        if hit:
+            return hit
+    return None
 
 
 def speed_at_50(base: int) -> int:

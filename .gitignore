@@ -137,3 +137,6 @@ dmypy.json
 
 # Test battery output
 matchup_battery_out/
+
+# Local session notes
+CLAUDE.md
