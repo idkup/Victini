@@ -18,7 +18,7 @@ rest). It is entirely opt-in — leagues with no linked sheet behave as before.
 One-time setup:
 1. Create a Google Cloud project and enable the **Google Sheets API**.
 2. Create a **service account**, download its JSON key to
-   `files/service_account.json` (gitignored).
+   `files/service_account_key.txt` (gitignored).
 3. Share each league's sheet with the service account's email as **Editor**.
 
 Usage:

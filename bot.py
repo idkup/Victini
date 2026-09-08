@@ -1,5 +1,6 @@
 import json
 import re
+import time
 
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
@@ -57,35 +58,75 @@ async def require_admin(ctx):
 
 # ---- Google Sheet sync (optional per league) --------------------------------
 
-def _sync_block_blocking(league, col, names, owner_name=None):
-    """Blocking sheet write: open the worksheet, optionally set the owner, rewrite
-    the block. Runs in an executor via push_block()."""
-    ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
-    if owner_name is not None:
-        sheet.set_block_owner(ws, col, owner_name)
-    return sheet.sync_block(ws, col, names)
+# Sheet writes are coalesced and throttled to at most one flush per league every
+# SYNC_COOLDOWN seconds: a burst of picks marks blocks dirty and a single delayed
+# flush writes the latest state (sync_block is idempotent), keeping well under
+# Google's write quota and letting rapid test/draft activity run smoothly.
+SYNC_COOLDOWN = 30
+_sync_state = {}   # league id -> {"last": float, "task": Task|None, "dirty": {pid:(participant,owner)}, "dest": messageable}
 
 
 async def push_block(dest, league, participant, owner=False):
-    """Best-effort mirror of a participant's roster into their sheet block. No-op
-    if the league has no linked sheet or the player has no assigned block. Failures
-    are reported to `dest` (a ctx or channel) but never affect the draft itself."""
+    """Queue a best-effort sheet sync of a participant's block. No-op if the league
+    has no linked sheet or the player has no assigned block. Coalesced/throttled to
+    one flush per league per SYNC_COOLDOWN; failures report to `dest` but never
+    affect the draft."""
     if league.get_sheet_id() is None:
         return
     idx = participant.get_block_index()
     if idx is None or idx >= sheet.BLOCK_COUNT:
         return
-    col = sheet.BLOCK_INPUT_COLS[idx]
-    names = [str(m) for m in participant.get_pokemon()]
-    owner_name = participant.get_name() if owner else None
+    st = _sync_state.setdefault(league.get_id(), {"last": 0.0, "task": None, "dirty": {}, "dest": dest})
+    st["dest"] = dest
+    pid = participant.get_discord()
+    st["dirty"][pid] = (participant, owner or st["dirty"].get(pid, (None, False))[1])
+    if st["task"] is None or st["task"].done():
+        st["task"] = asyncio.create_task(_flush_league_blocks(league))
+
+
+async def _flush_league_blocks(league):
+    """After the cooldown, write every block dirtied since the last flush."""
+    st = _sync_state[league.get_id()]
+    delay = SYNC_COOLDOWN - (time.monotonic() - st["last"])
+    if delay > 0:
+        await asyncio.sleep(delay)
+    st["last"] = time.monotonic()
+    st["task"] = None
+    dest = st["dest"]
+    jobs = []
+    for participant, owner in st["dirty"].values():
+        idx = participant.get_block_index()
+        if idx is None or idx >= sheet.BLOCK_COUNT:
+            continue
+        jobs.append((sheet.BLOCK_INPUT_COLS[idx],
+                     [str(m) for m in participant.get_pokemon()],
+                     participant.get_name() if owner else None,
+                     participant.get_name()))
+    st["dirty"] = {}
+    if not jobs:
+        return
+
+    def work():
+        ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
+        overflowed = []
+        for col, names, owner_name, pname in jobs:
+            if owner_name is not None:
+                sheet.set_block_owner(ws, col, owner_name)
+            if sheet.sync_block(ws, col, names):
+                overflowed.append(pname)
+        return overflowed
+
     loop = asyncio.get_running_loop()
     try:
-        overflow = await loop.run_in_executor(None, _sync_block_blocking, league, col, names, owner_name)
+        overflowed = await loop.run_in_executor(None, work)
     except Exception as e:
-        return await dest.send(f":warning: Sheet sync failed for {participant.get_name()}: {e}")
-    if overflow:
-        await dest.send(f":warning: {participant.get_name()}'s roster exceeds the "
-                        f"{sheet.PICK_ROWS}-slot block; extra Pokemon were not written to the sheet.")
+        if dest is not None:
+            await dest.send(f":warning: Sheet sync failed: {e}")
+        return
+    for pname in overflowed:
+        if dest is not None:
+            await dest.send(f":warning: {pname}'s roster exceeds the "
+                            f"{sheet.PICK_ROWS}-slot block; extra Pokemon were not written to the sheet.")
 
 
 async def resync_all(dest, league):
@@ -112,6 +153,8 @@ async def resync_all(dest, league):
         done = await loop.run_in_executor(None, work)
     except Exception as e:
         return await dest.send(f":warning: Sheet resync failed: {e}")
+    # count this manual full sync against the throttle window
+    _sync_state.setdefault(league.get_id(), {"last": 0.0, "task": None, "dirty": {}, "dest": dest})["last"] = time.monotonic()
     if done:
         await dest.send("Sheet blocks synced for: " + ", ".join(done))
     else:

@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import re
 
-CREDS_FILE = "files/service_account.json"
+CREDS_FILE = "files/service_account_key.txt"
 
 # The dex sheet abbreviates Mega formes as "-M" (e.g. "Absol-M-Z"), while the
 # ruleset JSON / bot use the full "-Mega" spelling. Convert on the way to the
