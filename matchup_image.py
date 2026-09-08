@@ -23,8 +23,9 @@ BLUE_TINT = (223, 235, 249)
 BLUE_ALT = (236, 243, 251)
 RED_TINT = (250, 226, 226)
 RED_ALT = (252, 239, 239)
-CELL_BG = (255, 255, 255)
-CELL_BORDER = (196, 202, 210)
+# checkerboard cell backgrounds for the sprite grids: (light, dark)
+BLUE_CHECK = ((231, 239, 250), (206, 222, 244))
+RED_CHECK = ((251, 233, 233), (245, 214, 214))
 INK = (33, 39, 46)
 WHITE = (255, 255, 255)
 
@@ -65,11 +66,14 @@ def _header(draw, x0, w, text, fill, font):
               text, font=font, fill=WHITE)
 
 
-def _draw_grid(img, draw, x0, rows, accent, tint, grid_rows, body_h):
-    grid_w = GRID_COLS * CELL_W
-    draw.rectangle([x0, HEADER_H, x0 + grid_w, HEADER_H + body_h], fill=tint)
+def _draw_grid(img, draw, x0, rows, accent, check, grid_rows, body_h):
+    light, dark = check
     slot_h = body_h / grid_rows
-    side = min(CELL_W, slot_h) - 16          # square cell size
+    for row in range(grid_rows):                 # checkerboard background
+        for col in range(GRID_COLS):
+            draw.rectangle([x0 + col * CELL_W, HEADER_H + row * slot_h,
+                            x0 + (col + 1) * CELL_W, HEADER_H + (row + 1) * slot_h],
+                           fill=(light if (row + col) % 2 == 0 else dark))
     n = len(rows)
     for i, r in enumerate(rows):
         row, col = divmod(i, GRID_COLS)
@@ -77,8 +81,6 @@ def _draw_grid(img, draw, x0, rows, accent, tint, grid_rows, body_h):
         row_off = (GRID_COLS - in_row) * CELL_W / 2    # centre a short (last) row
         ccx = x0 + row_off + col * CELL_W + CELL_W / 2
         ccy = HEADER_H + (row + 0.5) * slot_h
-        draw.rounded_rectangle([ccx - side / 2, ccy - side / 2, ccx + side / 2, ccy + side / 2],
-                               radius=12, fill=CELL_BG, outline=CELL_BORDER, width=2)
         sp = _sprite(r.get("sprite"), LARGE)
         if sp is not None:
             img.paste(sp, (int(ccx - LARGE / 2), int(ccy - LARGE / 2)), sp)
@@ -130,15 +132,14 @@ def render_matchup(p1_name, p1_rows, p2_name, p2_rows, speed_label="Speed") -> B
     l2_x = center_x + LADDER_COL_W
     right_x = center_x + center_w
 
-    _draw_grid(img, draw, left_x, p1_rows, BLUE, BLUE_TINT, grid_rows, body_h)
+    _draw_grid(img, draw, left_x, p1_rows, BLUE, BLUE_CHECK, grid_rows, body_h)
     _draw_ladder(img, draw, center_x, p1_rows, BLUE, BLUE_TINT, BLUE_ALT, num_f, False, body_h)
     _draw_ladder(img, draw, l2_x, p2_rows, RED, RED_TINT, RED_ALT, num_f, True, body_h)
-    _draw_grid(img, draw, right_x, p2_rows, RED, RED_TINT, grid_rows, body_h)
+    _draw_grid(img, draw, right_x, p2_rows, RED, RED_CHECK, grid_rows, body_h)
     draw.line([(l2_x, HEADER_H), (l2_x, HEADER_H + body_h)], fill=(210, 214, 220), width=1)
 
     _header(draw, left_x, grid_w, p1_name, BLUE, head_f)
-    _header(draw, center_x, LADDER_COL_W, speed_label, (70, 70, 78), head_f)
-    _header(draw, l2_x, LADDER_COL_W, speed_label, (70, 70, 78), head_f)
+    _header(draw, center_x, center_w, speed_label, (70, 70, 78), head_f)   # one merged header
     _header(draw, right_x, grid_w, p2_name, RED, head_f)
 
     out = BytesIO()
