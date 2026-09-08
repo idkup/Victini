@@ -47,6 +47,9 @@ _CODE_EXPANSIONS = {
     "day": ["midday"], "night": ["midnight"],
 }
 # Bare names whose default battle forme has a suffixed PokeAPI slug.
+# Names that ARE valid slugs but whose default we deliberately override
+# (PokeAPI's bare 'terapagos' is the small/pre-Terastal form).
+_FORCE_FORME = {"terapagos": "terapagos-terastal"}
 _DEFAULT_FORME = {
     "aegislash": "aegislash-shield", "basculin": "basculin-red-striped",
     "darmanitan": "darmanitan-standard", "dudunsparce": "dudunsparce-two-segment",
@@ -98,8 +101,12 @@ def pokeapi_name(species: str) -> str:
     base = _normalize(species)
     if not slugs:
         return base
+    if base in _FORCE_FORME and _FORCE_FORME[base] in slugs:  # override a valid-but-wrong default
+        return _FORCE_FORME[base]
     if base in slugs:
         return base
+    if base + "-mask" in slugs:            # ogerpon-wellspring == ogerpon-wellspring-mask
+        return base + "-mask"
     # gendered megas: PokeAPI orders gender before "mega" (meowstic-male-mega)
     gm = re.match(r"(.+)-mega-([mf])$", base)
     if gm:
@@ -155,7 +162,8 @@ def resolve_fuzzy(token: str):
             return slug
     smap = _stripped_slug_map()                          # hyphen-insensitive match
     for cand in (expanded, base):
-        hit = smap.get(_STRIP_RE.sub("", cand))
+        key = _STRIP_RE.sub("", cand)
+        hit = smap.get(key) or smap.get(key + "mask")    # ogerponwellspring -> ...-mask
         if hit:
             return hit
     return None
