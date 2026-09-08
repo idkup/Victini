@@ -125,6 +125,42 @@ def pokeapi_name(species: str) -> str:
     return prefixed[0] if prefixed else base
 
 
+_STRIP_RE = re.compile(r"[^a-z0-9]")           # drop hyphens/spaces/punct
+_MEGA_ALIAS_RE = re.compile(r"-m(?=-|$)")       # '-m' shorthand for '-mega'
+_stripped_slugs = None
+
+
+def _stripped_slug_map():
+    """{slug with hyphens/punct removed -> slug}, for loose matching."""
+    global _stripped_slugs
+    if _stripped_slugs is None:
+        _stripped_slugs = {}
+        for s in _valid_slugs():
+            _stripped_slugs.setdefault(_STRIP_RE.sub("", s), s)
+    return _stripped_slugs
+
+
+def resolve_fuzzy(token: str):
+    """Resolve a loosely-typed Pokemon name to a valid PokeAPI slug, or None.
+    Tolerant of missing hyphens ('samurotthisui' == 'samurott-hisui'), the
+    -m/-mega alias ('raichu-m-y' == 'raichu-mega-y' == 'raichumegay'), and
+    multi-word species written as one word ('tapukoko')."""
+    base = unicodedata.normalize("NFKD", token).encode("ascii", "ignore").decode().lower().strip()
+    if not base:
+        return None
+    expanded = _MEGA_ALIAS_RE.sub("-mega", base)
+    for cand in (expanded, base):                       # forme codes, default formes, etc.
+        slug = pokeapi_name(cand)
+        if slug in _valid_slugs():
+            return slug
+    smap = _stripped_slug_map()                          # hyphen-insensitive match
+    for cand in (expanded, base):
+        hit = smap.get(_STRIP_RE.sub("", cand))
+        if hit:
+            return hit
+    return None
+
+
 def speed_at_50(base: int) -> int:
     """Max Level-50 Speed: 31 IV, 252 EV, positive nature.
     floor((2*base+94)*50/100)+5 = base+52, then *1.1."""
