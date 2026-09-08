@@ -38,7 +38,8 @@ def kill_diff(participant):
 def rank(participants, results):
     """Order participants by (wins desc, kill_diff desc), breaking any group still
     tied on both by head-to-head wins within that group. `results` is a list of
-    (winner_id, loser_id, ...) tuples."""
+    (winner, loser, ...) tuples of participant objects (matched by identity, so
+    ranking survives a mid-season !substitute)."""
     def wins(p):
         return getattr(p, "_wins", 0)
 
@@ -53,9 +54,8 @@ def rank(participants, results):
             j += 1
         group = base[i:j]
         if len(group) > 1:
-            gids = {p.get_discord() for p in group}
-            group.sort(key=lambda p: sum(1 for r in results
-                                         if r[0] == p.get_discord() and r[1] in gids),
+            gset = set(group)
+            group.sort(key=lambda p: sum(1 for r in results if r[0] is p and r[1] in gset),
                        reverse=True)
         ordered.extend(group)
         i = j

@@ -28,7 +28,7 @@ class DraftLeague:
         self._sheet_tab = None           # tab gid (int) or title (str); None = first tab
         self._pending_sync = None        # participant auto-drafted this tick, for sheet sync
         self._schedule = None            # list[week] of (participant, participant|None) pairings
-        self._results = []               # (winner_id, loser_id, replay_url) log
+        self._results = []               # (winner, loser, replay_url) log (participant objects)
         self._seen_replays = set()       # replay URLs already counted (double-submit guard)
         self._bracket = None             # single-elim rounds: [[[a, b, winner], ...], ...]
         self._playoff_size = 8
@@ -301,7 +301,9 @@ class DraftLeague:
             return False
         winner.add_win()
         loser.add_loss()
-        self._results.append((winner_id, loser_id, replay_url))
+        # store participant *objects* (not ids): identity survives a mid-season
+        # !substitute, which mutates a participant's discord id/name in place.
+        self._results.append((winner, loser, replay_url))
         if replay_url is not None:
             self._seen_replays.add(replay_url)
         if self._bracket is not None:
@@ -313,10 +315,10 @@ class DraftLeague:
         return self._results
 
     def result_for(self, a, b):
-        """The recorded (winner_id, loser_id, url) between two participants, or None."""
-        ids = {a.get_discord(), b.get_discord()}
+        """The recorded (winner, loser, url) between two participants, or None.
+        Matched by object identity so it is robust to !substitute."""
         for r in self._results:
-            if {r[0], r[1]} == ids:
+            if {r[0], r[1]} == {a, b}:
                 return r
         return None
 

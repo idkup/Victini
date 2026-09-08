@@ -1063,7 +1063,7 @@ async def schedule(ctx, l_id, week=None):
             res = league.result_for(me, opp)
             tag = ""
             if res:
-                tag = f" — {'W' if res[0] == ctx.author.id else 'L'}" + (f" <{res[2]}>" if res[2] else "")
+                tag = f" — {'W' if res[0] is me else 'L'}" + (f" <{res[2]}>" if res[2] else "")
             lines.append(f"Week {wk}: vs {opp.get_name()}{tag}")
         e = Embed(title=f"{me.get_name()}'s schedule — league {league.get_id()} ({me.get_record()})")
         e.description = "\n".join(lines)
@@ -1082,8 +1082,7 @@ async def schedule(ctx, l_id, week=None):
             continue
         res = league.result_for(a, b)
         if res:
-            w = league._participant_by_id(res[0])
-            lo = league._participant_by_id(res[1])
+            w, lo = res[0], res[1]
             link = f"  <{res[2]}>" if res[2] else ""
             lines.append(f"**{w.get_name()}** def. {lo.get_name()}{link}")
         else:
@@ -1111,7 +1110,7 @@ async def fullschedule(ctx, l_id):
                 continue
             res = league.result_for(a, b)
             if res:
-                rows.append(f"{a.get_name()} v {b.get_name()} → {league._participant_by_id(res[0]).get_name()}")
+                rows.append(f"{a.get_name()} v {b.get_name()} → {res[0].get_name()}")
             else:
                 rows.append(f"{a.get_name()} v {b.get_name()}")
         e.add_field(name=f"Week {wk}", value="\n".join(rows) or "—", inline=True)

@@ -59,7 +59,7 @@ class Ranking(unittest.TestCase):
         a = _P(1, wins=3, mons=[_Mon(10, 2)])   # +8
         b = _P(2, wins=3, mons=[_Mon(5, 5)])     # 0
         c = _P(3, wins=3, mons=[_Mon(10, 2)])    # +8, tied with a -> head-to-head
-        results = [(3, 1, "url")]                # c beat a
+        results = [(c, a, "url")]                # c beat a (participant objects)
         self.assertEqual([p.get_discord() for p in season.rank([a, b, c], results)], [3, 1, 2])
 
     def test_wins_dominate_killdiff(self):
