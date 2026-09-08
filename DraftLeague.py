@@ -4,6 +4,7 @@ import datetime
 import json
 import pickle
 import random
+import season
 from typing import Union
 
 
@@ -26,6 +27,11 @@ class DraftLeague:
         self._sheet_id = None            # target Google Sheet (optional integration)
         self._sheet_tab = None           # tab gid (int) or title (str); None = first tab
         self._pending_sync = None        # participant auto-drafted this tick, for sheet sync
+        self._schedule = None            # list[week] of (participant, participant|None) pairings
+        self._results = []               # (winner_id, loser_id, replay_url) log
+        self._seen_replays = set()       # replay URLs already counted (double-submit guard)
+        self._bracket = None             # single-elim rounds: [[[a, b, winner], ...], ...]
+        self._playoff_size = 8
         with open('files/{}.json'.format(tierlist), 'r', encoding='utf-8') as file:
             d = json.load(file)
             file.close()
@@ -45,6 +51,11 @@ class DraftLeague:
             "_sheet_id": None,
             "_sheet_tab": None,
             "_pending_sync": None,
+            "_schedule": None,
+            "_results": [],
+            "_seen_replays": set(),
+            "_bracket": None,
+            "_playoff_size": 8,
         })
         self.__dict__.update(state)
 
@@ -260,3 +271,65 @@ class DraftLeague:
         """Shuffles the order of the participants."""
         if self._phase == 0:
             random.shuffle(self._participants)
+
+    # ---- season: schedule, standings, playoffs ------------------------------
+
+    def _participant_by_id(self, discord_id):
+        for p in self._participants:
+            if p.get_discord() == discord_id:
+                return p
+        return None
+
+    def generate_schedule(self, weeks=8):
+        """Build the round-robin regular-season schedule."""
+        self._schedule = season.round_robin(self._participants, weeks)
+        return self._schedule
+
+    def get_schedule(self):
+        return self._schedule
+
+    def record_result(self, winner_id, loser_id, replay_url=None):
+        """Record a game result: bump W/L, log it (for head-to-head and replay
+        links), and advance the playoff bracket if the pair is a live matchup.
+        No-op on a repeat replay URL or a missing participant. Returns True if
+        recorded."""
+        if replay_url is not None and replay_url in self._seen_replays:
+            return False
+        winner = self._participant_by_id(winner_id)
+        loser = self._participant_by_id(loser_id)
+        if winner is None or loser is None:
+            return False
+        winner.add_win()
+        loser.add_loss()
+        self._results.append((winner_id, loser_id, replay_url))
+        if replay_url is not None:
+            self._seen_replays.add(replay_url)
+        if self._bracket is not None:
+            season.advance_bracket(self._bracket, winner_id, loser_id,
+                                   lambda p: p.get_discord())
+        return True
+
+    def get_results(self):
+        return self._results
+
+    def result_for(self, a, b):
+        """The recorded (winner_id, loser_id, url) between two participants, or None."""
+        ids = {a.get_discord(), b.get_discord()}
+        for r in self._results:
+            if {r[0], r[1]} == ids:
+                return r
+        return None
+
+    def standings(self):
+        """Participants ranked by wins, then kill differential, then head-to-head."""
+        return season.rank(self._participants, self._results)
+
+    def generate_bracket(self, size=None):
+        """Seed a single-elimination bracket from current standings."""
+        if size is not None:
+            self._playoff_size = size
+        self._bracket = season.bracket_from_seeds(self.standings(), self._playoff_size)
+        return self._bracket
+
+    def get_bracket(self):
+        return self._bracket
