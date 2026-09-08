@@ -1,10 +1,11 @@
 class BattleParticipant:
-    def __init__(self, psname):
+    """One side of a parsed battle: the Showdown display name, the side id
+    ('p1'/'p2'), and the team of BattlePokemon."""
+
+    def __init__(self, psname, side):
         self.psname = psname
+        self.side = side
         self.team = []
-        self.rocks_set = None
-        self.spikes_set = None
-        self.tspikes_set = None
 
     def __repr__(self):
-        return f"""{self.psname}: {self.team}"""
+        return "{} ({}): {}".format(self.psname, self.side, self.team)

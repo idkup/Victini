@@ -1,9 +1,15 @@
-import json.decoder
+import json
+import re
+import time
 
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
 from ParseReplay import parse_replay
+import sheet
+import pokeapi
+import matchup_image
 import asyncio
+import discord
 from discord import Embed
 from discord.ext import commands
 import pickle
@@ -11,17 +17,154 @@ import requests
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585,
              175763247176220672, 142796252243951616, 974026524003024917]
-bot = commands.Bot(command_prefix='!')
+
+# discord.py 2.x requires intents to be declared explicitly. Prefix commands
+# read message text, which is a privileged intent: message_content must be
+# enabled here AND toggled on for the bot in the Discord Developer Portal.
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+
+# ---- shared helpers ---------------------------------------------------------
+
+def league_by_id(l_id):
+    """Return the league with the given ID, or None."""
+    for l in leagues:
+        if l.get_id() == int(l_id):
+            return l
+    return None
+
+
+def league_by_channel(channel_id):
+    """Return the league whose drafting channel is channel_id, or None."""
+    for l in leagues:
+        if l.get_channel() == channel_id:
+            return l
+    return None
+
+
+async def require_admin(ctx):
+    """Warn and return True if the caller is not an admin (so callers can
+    `if await require_admin(ctx): return`)."""
+    if ctx.author.id not in admin_ids:
+        await ctx.send("This is an admin-only command.")
+        return True
+    return False
+
+
+# Base Speed lookups and sprites for matchups live in pokeapi.py (cached on disk).
+
+
+# ---- Google Sheet sync (optional per league) --------------------------------
+
+# Sheet writes are coalesced and throttled to at most one flush per league every
+# SYNC_COOLDOWN seconds: a burst of picks marks blocks dirty and a single delayed
+# flush writes the latest state (sync_block is idempotent), keeping well under
+# Google's write quota and letting rapid test/draft activity run smoothly.
+SYNC_COOLDOWN = 30
+_sync_state = {}   # league id -> {"last": float, "task": Task|None, "dirty": {pid:(participant,owner)}, "dest": messageable}
+
+
+async def push_block(dest, league, participant, owner=False):
+    """Queue a best-effort sheet sync of a participant's block. No-op if the league
+    has no linked sheet or the player has no assigned block. Coalesced/throttled to
+    one flush per league per SYNC_COOLDOWN; failures report to `dest` but never
+    affect the draft."""
+    if league.get_sheet_id() is None:
+        return
+    idx = participant.get_block_index()
+    if idx is None or idx >= sheet.BLOCK_COUNT:
+        return
+    st = _sync_state.setdefault(league.get_id(), {"last": 0.0, "task": None, "dirty": {}, "dest": dest})
+    st["dest"] = dest
+    pid = participant.get_discord()
+    st["dirty"][pid] = (participant, owner or st["dirty"].get(pid, (None, False))[1])
+    if st["task"] is None or st["task"].done():
+        st["task"] = asyncio.create_task(_flush_league_blocks(league))
+
+
+async def _flush_league_blocks(league):
+    """After the cooldown, write every block dirtied since the last flush."""
+    st = _sync_state[league.get_id()]
+    delay = SYNC_COOLDOWN - (time.monotonic() - st["last"])
+    if delay > 0:
+        await asyncio.sleep(delay)
+    st["last"] = time.monotonic()
+    st["task"] = None
+    dest = st["dest"]
+    jobs = []
+    for participant, owner in st["dirty"].values():
+        idx = participant.get_block_index()
+        if idx is None or idx >= sheet.BLOCK_COUNT:
+            continue
+        jobs.append((idx,
+                     [str(m) for m in participant.get_pokemon()],
+                     participant.get_name() if owner else None,
+                     participant.get_name()))
+    st["dirty"] = {}
+    if not jobs:
+        return
+
+    def work():
+        ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
+        overflowed = []
+        for block_idx, names, owner_name, pname in jobs:
+            if owner_name is not None:
+                sheet.set_block_owner(ws, block_idx, owner_name)
+            if sheet.sync_block(ws, block_idx, names):
+                overflowed.append(pname)
+        return overflowed
+
+    loop = asyncio.get_running_loop()
+    try:
+        overflowed = await loop.run_in_executor(None, work)
+    except Exception as e:
+        if dest is not None:
+            await dest.send(f":warning: Sheet sync failed: {e}")
+        return
+    for pname in overflowed:
+        if dest is not None:
+            await dest.send(f":warning: {pname}'s roster exceeds the "
+                            f"{sheet.PICK_ROWS}-slot block; extra Pokemon were not written to the sheet.")
+
+
+async def resync_all(dest, league):
+    """Rewrite every assigned block (owners + rosters) from current state, opening
+    the worksheet once. Used by !shuffle and !resync_sheet."""
+    if league.get_sheet_id() is None:
+        return await dest.send("No sheet is linked to this league. Use !set_sheet first.")
+
+    def work():
+        ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
+        done = []
+        for p in league.get_participants():
+            idx = p.get_block_index()
+            if idx is None or idx >= sheet.BLOCK_COUNT:
+                continue
+            sheet.set_block_owner(ws, idx, p.get_name())
+            sheet.sync_block(ws, idx, [str(m) for m in p.get_pokemon()])
+            done.append(p.get_name())
+        return done
+
+    loop = asyncio.get_running_loop()
+    try:
+        done = await loop.run_in_executor(None, work)
+    except Exception as e:
+        return await dest.send(f":warning: Sheet resync failed: {e}")
+    # count this manual full sync against the throttle window
+    _sync_state.setdefault(league.get_id(), {"last": 0.0, "task": None, "dirty": {}, "dest": dest})["last"] = time.monotonic()
+    if done:
+        await dest.send("Sheet blocks synced for: " + ", ".join(done))
+    else:
+        await dest.send("No blocks are assigned yet. Run !shuffle first.")
 
 
 @bot.command()
 async def available(ctx, l_id, cost):
     """Wrapper for DraftLeague.available_pokemon()"""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     av = league.available_pokemon(int(cost))
     if len(av) <= 100:
@@ -34,14 +177,11 @@ async def available(ctx, l_id, cost):
 @bot.command()
 async def close_trades(ctx):
     """Ends free agency in the identified league."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
-        return await ctx.send("Invalid league ID.")
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 2:
         return await ctx.send("Free agency is not currently open.")
     league.next_phase()
@@ -51,13 +191,10 @@ async def close_trades(ctx):
 @bot.command()
 async def debug_add_pokemon(ctx, name, cost):
     """Adds a Pokemon to a DraftLeague already in progress. Formerly debug_aggs(). Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command!")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel!")
     try:
         cost = int(cost)
@@ -70,13 +207,10 @@ async def debug_add_pokemon(ctx, name, cost):
 @bot.command()
 async def debug_cost(ctx, mon, cost):
     """Changes the cost of a specific Pokemon in that DraftLeague. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel!")
     try:
         cost = int(cost)
@@ -92,13 +226,10 @@ async def debug_cost(ctx, mon, cost):
 @bot.command()
 async def debug_rename(ctx, mon, name):
     """Changes the name of a specific Pokemon in that DraftLeague. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel!")
     for p in league.get_all_pokemon():
         if str(p).lower() == mon.lower():
@@ -111,11 +242,8 @@ async def debug_rename(ctx, mon, name):
 async def debug_draft(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
 
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         if p.get_discord() == int(d_id):
@@ -131,19 +259,17 @@ async def debug_draft(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     picker.set_mon(to_draft)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
+    await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
 async def debug_increment(ctx, l_id, s):
     """Changes the increment of the pick timer. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     league.set_increment(int(s))
     return await ctx.send("Draft timer increment for league {} is now {} seconds.".format(l_id, s))
@@ -152,13 +278,10 @@ async def debug_increment(ctx, l_id, s):
 @bot.command()
 async def debug_phase(ctx, l_id, phase="0"):
     """Sets the phase in a league. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     league.set_phase(int(phase))
     return await ctx.send("Phase of league {} set to {}".format(league.get_id(), league.get_phase()))
@@ -167,8 +290,8 @@ async def debug_phase(ctx, l_id, phase="0"):
 @bot.command()
 async def debug_leagues(ctx):
     """Prints all leagues with their current phase. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
+    if await require_admin(ctx):
+        return
     await ctx.send("Current leagues: \n{}".format("\n".join(["ID: {} Phase: {}".format(
         l.get_id(), l.get_phase()) for l in leagues])))
 
@@ -176,13 +299,10 @@ async def debug_leagues(ctx):
 @bot.command()
 async def debug_participants(ctx, l_id):
     """Rebuilds all participant objects in the league. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     lp = []
     for p in league.get_participants():
@@ -205,13 +325,10 @@ async def debug_participants(ctx, l_id):
 @bot.command()
 async def debug_pickorder(ctx, l_id):
     """Debugs pick order. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     league.set_pick_order()
     return await ctx.send("Pick order debugged.")
@@ -220,13 +337,10 @@ async def debug_pickorder(ctx, l_id):
 @bot.command()
 async def debug_predraft(ctx, l_id):
     """Wipes all predrafts. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         p.set_next_pick([])
@@ -236,13 +350,10 @@ async def debug_predraft(ctx, l_id):
 @bot.command()
 async def debug_points(ctx, l_id, pts):
     """Debugs starting points. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         new_pts = int(pts)
@@ -256,13 +367,10 @@ async def debug_points(ctx, l_id, pts):
 @bot.command()
 async def debug_add_after_draft(ctx, l_id, d_id, *args):
     """Adds a Pokemon to a player's team. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         if p.get_discord() == int(d_id):
@@ -278,19 +386,17 @@ async def debug_add_after_draft(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     player.set_mon(to_add)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_add, player.get_discord()))
+    await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_add, player.get_discord()))
+    await push_block(ctx, league, player)
 
 
 @bot.command()
 async def debug_release(ctx, l_id, d_id, *args):
     """Removes a Pokemon from a player's team. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         if p.get_discord() == int(d_id):
@@ -306,19 +412,17 @@ async def debug_release(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to remove is not recognized!")
     player.remove_mon(to_release)
-    return await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
+    await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
+    await push_block(ctx, league, player)
 
 
 @bot.command()
 async def debug_kills(ctx, l_id, number, *args):
     """Adjusts kill count of a Pokemon in a league. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     name = " ".join(args)
     for mon in league.get_all_pokemon():
@@ -334,13 +438,10 @@ async def debug_kills(ctx, l_id, number, *args):
 @bot.command()
 async def debug_deaths(ctx, l_id, number, *args):
     """Adjusts death count of a Pokemon in a league. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     name = " ".join(args)
     for mon in league.get_all_pokemon():
@@ -356,13 +457,10 @@ async def debug_deaths(ctx, l_id, number, *args):
 @bot.command()
 async def debug_reset(ctx, l_id):
     """Wipes the league. Admin command."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     leagues.remove(league)
     return await ctx.send("League removed from database.")
@@ -371,11 +469,8 @@ async def debug_reset(ctx, l_id):
 @bot.command()
 async def draft(ctx, *args):
     """Wrapper for DraftLeague.draft()."""
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
 
     name = " ".join(args)
@@ -395,16 +490,14 @@ async def draft(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
 async def find(ctx, l_id, *args):
     """Wrapper for DraftLeague.find_mon()"""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     name = " ".join(args)
     for mon in league.get_all_pokemon():
@@ -419,13 +512,10 @@ async def find(ctx, l_id, *args):
 @bot.command()
 async def forcedraft(ctx, *args):
     """Admin command to draft for an AFK player."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 1:
         return await ctx.send("It is not the drafting phase!")
@@ -444,18 +534,16 @@ async def forcedraft(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
 async def forceregister(ctx, d_id, name):
     """Allows an admin to register participants to a DraftLeague."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 0:
         return await ctx.send("It is too late to register!")
@@ -467,79 +555,69 @@ async def forceregister(ctx, d_id, name):
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 
+# matchup speed modes: trailing flag on !mu selects base (default), Lv50 or Lv100.
+_SPEED_MODES = {
+    "50": ("Lv 50", pokeapi.speed_at_50), "l50": ("Lv 50", pokeapi.speed_at_50),
+    "100": ("Lv 100", pokeapi.speed_at_100), "l100": ("Lv 100", pokeapi.speed_at_100),
+}
+
+
 @bot.command(aliases=["mu", "gm"])
 async def generate_matchup(ctx, l_id, *args):
-    """Generates a matchup embed if possible."""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    """Renders a team-vs-team matchup image (sprites + per-side Speed ladders).
+    Add a trailing `l50` or `l100` to show max Level-50 / Level-100 Speed instead
+    of base Speed."""
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
-    p1 = args[0]
-    p2 = args[1]
+    args = list(args)
+    label, speed_fn = "Speed", None
+    if args and args[-1].lower().lstrip("-+") in _SPEED_MODES:
+        label, speed_fn = _SPEED_MODES[args.pop().lower().lstrip("-+")]
+    if len(args) < 2:
+        return await ctx.send("Usage: !mu <league_id> <player1> <player2> [l50|l100]")
+    p1, p2 = args[0], args[1]
     p1_user = league.get_user(p1)
     if p1_user is False:
         return await ctx.send("{} is not participating in the draft.".format(p1))
     p2_user = league.get_user(p2)
     if p2_user is False:
         return await ctx.send("{} is not participating in the draft.".format(p2))
-    p1_mons = p1_user.get_pokemon()
-    p2_mons = p2_user.get_pokemon()
-    p1_speeds = {}
-    p2_speeds = {}
-    for p in p1_mons:
-        name = str(p)
-        name = name.replace(" ", "-")
-        name += "-Single-Strike" if name == "Urshifu" else ""
-        name += "-Pom-Pom" if name == "Oricorio" else ""
-        name += "-Terastal" if name == "Terapagos" else ""
-        name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
-        name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
-        name += "-Ordinary" if name == "Keldeo" else ""
-        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
-        name += "-Hero" if name == "Palafin" else ""
-        try:
-            api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
-            p1_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
-        except json.decoder.JSONDecodeError:
-            return await ctx.send(f"failed api call: {name}")
 
-    for p in p2_mons:
-        name = str(p)
-        name = name.replace(" ", "-")
-        name += "-Single-Strike" if name == "Urshifu" else ""
-        name += "-Pom-Pom" if name == "Oricorio" else ""
-        name += "-Terastal" if name == "Terapagos" else ""
-        name += "-Female" if name in ["Basculegion", "Indeedee"] else ""
-        name += "-Mask" if name in ["Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone"] else ""
-        name += "-Ordinary" if name == "Keldeo" else ""
-        name += "-Incarnate" if name in ["Tornadus", "Thundurus", "Landorus", "Enamorus"] else ""
-        name += "-Hero" if name == "Palafin" else ""
-        try:
-            api_response = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
-            p2_speeds[str(p)] = api_response.json()["stats"][5]["base_stat"]
-        except json.decoder.JSONDecodeError:
-            return await ctx.send(f"failed api call: {name}")
-    p1_speeds = dict(sorted(p1_speeds.items(), key=lambda item: item[1], reverse=True))
-    p2_speeds = dict(sorted(p2_speeds.items(), key=lambda item: item[1], reverse=True))
-    p1_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p1_speeds.items()]
-    p2_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p2_speeds.items()]
-    e = Embed(title=f"{p1} vs {p2}")
-    e.add_field(name=p1, value="\n".join(p1_speedstrings), inline=True)
-    e.add_field(name="\u200B", value="\u200B", inline=True)
-    e.add_field(name=p2, value="\n".join(p2_speedstrings), inline=True)
-    await ctx.send(embed=e)
+    async def rows_for(user):
+        rows = []
+        for mon in user.get_pokemon():
+            species = str(mon)
+            base = await pokeapi.base_speed(species)
+            rows.append({"species": species,
+                         "speed": speed_fn(base) if speed_fn else base,
+                         "sprite": await pokeapi.sprite_bytes(species)})
+        return rows
+
+    try:
+        p1_rows = await rows_for(p1_user)
+        p2_rows = await rows_for(p2_user)
+    except pokeapi.SpeedLookupError as e:
+        return await ctx.send(f"failed api call: {e}")
+
+    try:
+        png = matchup_image.render_matchup(p1, p1_rows, p2, p2_rows, speed_label=label)
+        return await ctx.send(file=discord.File(png, filename="matchup.png"))
+    except Exception as err:  # fall back to a text embed if rendering is unavailable
+        def line(r):
+            return f"{r['species']}: {r['speed']}"
+        e = Embed(title=f"{p1} vs {p2}")
+        e.add_field(name=p1, value="\n".join(line(r) for r in sorted(p1_rows, key=lambda r: -r["speed"])) or "\u200B", inline=True)
+        e.add_field(name="\u200B", value="\u200B", inline=True)
+        e.add_field(name=p2, value="\n".join(line(r) for r in sorted(p2_rows, key=lambda r: -r["speed"])) or "\u200B", inline=True)
+        return await ctx.send(content=f"(matchup image unavailable: {err})", embed=e)
 
 
 @bot.command()
 async def info(ctx, l_id, *args):
     """Prints str(DraftParticipant) to Discord if possible."""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     name = " ".join([*args])
     if name.lower() == "all":
@@ -556,8 +634,8 @@ async def info(ctx, l_id, *args):
 @bot.command()
 async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120):
     """Starts a new DraftLeague()."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
+    if await require_admin(ctx):
+        return
     try:
         l_id = int(l_id)
     except ValueError:
@@ -574,11 +652,8 @@ async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120):
 @bot.command()
 async def kills(ctx, l_id):
     """Displays the kill leaderboard for the league."""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     msg = f"**Kill Leaderboard (League {l_id}):**\n"
     league.get_all_pokemon().sort(key=lambda x: x.get_kills(), reverse=True)
@@ -597,11 +672,8 @@ async def kills(ctx, l_id):
 @bot.command()
 async def participants(ctx, l_id):
     """Wrapper for DraftLeague.get_participants()."""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     pl = [x.get_name() for x in league.get_participants()]
     if len(pl) == 0:
@@ -614,11 +686,8 @@ async def participants(ctx, l_id):
 async def predraft(ctx, l_id, key, rd=0, *args):
     """Alters the list of premade picks of a DraftParticipant. If rd is not 0, the predrafted Pokemon will only be
     drafted in the specified round. Keys: ADD, CLEAR, REMOVE"""
-    for l in leagues:
-        if l.get_id() == int(l_id):
-            league = l
-            break
-    else:
+    league = league_by_id(l_id)
+    if league is None:
         return await ctx.send("Invalid league ID.")
     for p in league.get_participants():
         if p.get_discord() == ctx.author.id:
@@ -633,6 +702,10 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         picker.set_next_pick([])
         return await ctx.send("Priority for automatic drafting cleared.")
     if key.lower() == "add":
+        try:
+            rd = int(rd)  # discord passes args as strings; the round must be int
+        except (ValueError, TypeError):
+            return await ctx.send("Round must be an integer. Usage: !predraft <id> add <round> <mon> (round 0 = any round).")
         pick = " ".join(args)
         for mon in league.get_all_pokemon():
             if str(mon).lower() == pick.strip().lower():
@@ -642,9 +715,8 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         np.append((pick, rd))
         picker.set_next_pick(np)
     if key.lower() == "remove":
-        for p in np:
-            if p[0] == " ".join(args):
-                np.remove(p)
+        target = " ".join(args).strip().lower()
+        picker.set_next_pick([x for x in np if x[0].strip().lower() != target])
     return await ctx.send("Priority for automatic drafting: {}".format(
         "; ".join([f"{x[0]}, round: {x[1]}" for x in picker.get_next_pick()])))
 
@@ -652,11 +724,8 @@ async def predraft(ctx, l_id, key, rd=0, *args):
 @bot.command()
 async def register(ctx):
     """Registers the user to a DraftLeague as a DraftParticipant."""
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 0:
         return await ctx.send("It is too late to register!")
@@ -674,11 +743,8 @@ async def register(ctx):
 @bot.command()
 async def release(ctx, *args):
     """Wrapper for DraftParticipant.release()"""
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 2:
         return await ctx.send("You cannot release Pokemon right now.")
@@ -700,6 +766,7 @@ async def release(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, player)
 
 
 @bot.command()
@@ -717,6 +784,8 @@ async def replay(ctx, replay_url):
     if league.get_phase() < 2:
         return await ctx.send("This league is still in the drafting phase!")
     parsed_battle = parse_replay(replay_url)
+    if parsed_battle.winner is None:
+        return await ctx.send("Could not determine a winner from that replay.")
     check_alive = lambda x: not x.ko
     winner_id = None
     loser_id = None
@@ -762,8 +831,8 @@ async def replay(ctx, replay_url):
 @bot.command()
 async def replay_channel(ctx, l_id):
     """Sets the replay channel of a league."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
+    if await require_admin(ctx):
+        return
     for l in leagues:
         try:
             if l.get_channel() == ctx.channel.id:
@@ -783,8 +852,8 @@ async def replay_channel(ctx, l_id):
 @bot.command()
 async def save(ctx):
     """Backs up all leagues."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
+    if await require_admin(ctx):
+        return
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
@@ -794,32 +863,74 @@ async def save(ctx):
 @bot.command()
 async def shuffle(ctx):
     """Wrapper for DraftLeague.shuffle()"""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 0:
         return await ctx.send("Cannot shuffle participants in a league that has already started.")
+    participants = league.get_participants()
+    if league.get_sheet_id() is not None and len(participants) > sheet.BLOCK_COUNT:
+        return await ctx.send(
+            f"Too many participants ({len(participants)}) for the {sheet.BLOCK_COUNT} "
+            f"blocks on the linked sheet; cannot assign blocks.")
     league.shuffle()
-    return await ctx.send("Participants of league {} shuffled. Pick order: {}".format(
+    for i, p in enumerate(league.get_participants()):
+        p.set_block_index(i)
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+    await ctx.send("Participants of league {} shuffled. Pick order: {}".format(
         league.get_id(), ", ".join([p.get_name() for p in league.get_participants()])))
+    if league.get_sheet_id() is not None:
+        await resync_all(ctx, league)
+
+
+@bot.command()
+async def set_sheet(ctx, url):
+    """Links a Google Sheet to this league so picks auto-populate it. Admin command.
+    Accepts a full sheet URL (tab gid honored) or a bare spreadsheet id."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+    sheet_id = m.group(1) if m else url.strip()
+    g = re.search(r"[#?&]gid=(\d+)", url)
+    tab = int(g.group(1)) if g else None
+    league.set_sheet(sheet_id, tab)
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+    where = f"id `{sheet_id}`" + (f", tab {tab}" if tab is not None else "")
+    if not sheet.available():
+        return await ctx.send(
+            f"Sheet linked to league {league.get_id()} ({where}), but no service-account "
+            f"key is installed yet — syncing will start once `{sheet.CREDS_FILE}` is added "
+            f"and the sheet is shared with the service account's email.")
+    await ctx.send(f"Sheet linked to league {league.get_id()} ({where}). "
+                   f"Run !shuffle to assign blocks, then picks will sync automatically.")
+
+
+@bot.command()
+async def resync_sheet(ctx):
+    """Rewrites every assigned block on the linked sheet from current state. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    await resync_all(ctx, league)
 
 
 @bot.command()
 async def start_draft(ctx):
     """Starts the draft phase of the identified league."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
-        return await ctx.send("Invalid league ID.")
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 0:
         return await ctx.send("The draft has already been started.")
     if len(league.get_participants()) == 0:
@@ -840,13 +951,10 @@ async def start_draft(ctx):
 @bot.command()
 async def substitute(ctx, old_id, new_id, new_name):
     """Wrapper for DraftParticipant.substitute()."""
-    if ctx.author.id not in admin_ids:
-        return await ctx.send("This is an admin-only command.")
-    for l in leagues:
-        if l.get_channel() == ctx.channel.id:
-            league = l
-            break
-    else:
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
         return await ctx.send("This is not a drafting channel.")
     for p in league.get_participants():
         if int(p.get_discord()) == int(old_id):
@@ -854,24 +962,38 @@ async def substitute(ctx, old_id, new_id, new_name):
             break
     else:
         return await ctx.send("The player you are attempting to substitute is not in the league.")
-    return await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
+    await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
+    await push_block(ctx, league, p, owner=True)
+
+
+@bot.event
+async def setup_hook():
+    """Runs once during login (discord.py 2.x). Starts the draft-phase timer
+    here rather than in on_ready, which can fire multiple times on reconnect
+    and would spawn duplicate timer loops."""
+    bot.loop.create_task(timer())
 
 
 @bot.event
 async def on_ready():
-    """Prints 'ready' when bot is online. Starts timer for draft phase."""
-    bot.loop.create_task(timer())
-    print('ready')
+    """Prints readiness when the bot is online."""
+    print(f'ready — logged in as {bot.user}')
 
 
 async def timer():
     """Timer for draft phase."""
+    await bot.wait_until_ready()
     while True:
         for l in leagues:
             if l.get_phase() == 1:
                 msg = l.check_pick_deadline()
+                picker = l.take_pending_sync()
                 if msg:
-                    await bot.get_channel(l.get_channel()).send(msg)
+                    channel = bot.get_channel(l.get_channel())
+                    if channel is not None:
+                        await channel.send(msg)
+                        if picker is not None:
+                            await push_block(channel, l, picker)
         await asyncio.sleep(1)
 
 

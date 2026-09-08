@@ -23,10 +23,30 @@ class DraftLeague:
         self._increment = int(increment)
         self._channel = channel
         self._replay_channel = None
-        with open('files/{}.json'.format(tierlist), 'r') as file:
+        self._sheet_id = None            # target Google Sheet (optional integration)
+        self._sheet_tab = None           # tab gid (int) or title (str); None = first tab
+        self._pending_sync = None        # participant auto-drafted this tick, for sheet sync
+        with open('files/{}.json'.format(tierlist), 'r', encoding='utf-8') as file:
             d = json.load(file)
             file.close()
         self._tierlist = [DraftPokemon(k, v, "-Mega" in k or "Mega " in k) for k, v in d.items()]
+
+    def __setstate__(self, state):
+        """Restore from pickle, filling defaults for attributes added in later
+        versions so save files written by an older build unpickle cleanly
+        (e.g. _replay_channel, which older leagues predate)."""
+        self.__dict__.update({
+            "_participants": [],
+            "_missedpicks": [],
+            "_phase": 0,
+            "_picking": None,
+            "_pickorder": [],
+            "_replay_channel": None,
+            "_sheet_id": None,
+            "_sheet_tab": None,
+            "_pending_sync": None,
+        })
+        self.__dict__.update(state)
 
     def add_missed_pick(self, user: DraftParticipant):
         """Adds a missed pick to a user."""
@@ -75,6 +95,7 @@ class DraftLeague:
                         if p[1] == 0 or p[1] > (self._picking[0] // len(self._participants) + 1):
                             new_predrafts.append(p)
                     current_picker.set_next_pick(new_predrafts)
+                    self._pending_sync = current_picker  # sheet sync picked up by timer()
                     return "<@{}> has drafted {}! ".format(current_picker.get_discord(),
                                                            str(to_draft)) + self.next_pick()
 
@@ -148,6 +169,26 @@ class DraftLeague:
     def get_replay_channel(self) -> int:
         """Returns the Discord channel for the replays of this league."""
         return self._replay_channel
+
+    def get_sheet_id(self):
+        """Returns the target Google Sheet id, or None if no sheet is linked."""
+        return self._sheet_id
+
+    def get_sheet_tab(self):
+        """Returns the target sheet tab (gid int or title str), or None for the first tab."""
+        return self._sheet_tab
+
+    def set_sheet(self, sheet_id, tab=None):
+        """Links a Google Sheet (and optional tab) to this league for pick sync."""
+        self._sheet_id = sheet_id
+        self._sheet_tab = tab
+
+    def take_pending_sync(self) -> Union[DraftParticipant, None]:
+        """Returns the participant auto-drafted since the last call (and clears it),
+        so the caller can push their block to the sheet."""
+        p = self._pending_sync
+        self._pending_sync = None
+        return p
 
     def get_user(self, name) -> Union[DraftParticipant, bool]:
         """Returns the DraftParticipant of the given name."""

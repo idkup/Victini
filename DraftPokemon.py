@@ -9,6 +9,17 @@ class DraftPokemon:
         self._deaths = 0
         self._owner = None
 
+    def __setstate__(self, state):
+        """Restore from pickle, filling defaults for attributes added in later
+        versions so save files written by an older build unpickle cleanly."""
+        self.__dict__.update({
+            "_is_mega": False,
+            "_kills": 0,
+            "_deaths": 0,
+            "_owner": None,
+        })
+        self.__dict__.update(state)
+
     def __str__(self):
         """Behavior when stringified."""
         return self._name

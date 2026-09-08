@@ -1,6 +1,9 @@
 # Specific files
 files/key.txt
 files/leagues.txt
+files/speeds.json
+files/service_account_key.json
+files/sprites/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -131,3 +134,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Test battery output
+matchup_battery_out/
