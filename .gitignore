@@ -2,7 +2,7 @@
 files/key.txt
 files/leagues.txt
 files/speeds.json
-files/service_account.json
+files/service_account_key.txt
 files/sprites/
 
 # Byte-compiled / optimized / DLL files
@@ -134,3 +134,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Test battery output
+matchup_battery_out/
