@@ -660,6 +660,10 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         picker.set_next_pick([])
         return await ctx.send("Priority for automatic drafting cleared.")
     if key.lower() == "add":
+        try:
+            rd = int(rd)  # discord passes args as strings; the round must be int
+        except (ValueError, TypeError):
+            return await ctx.send("Round must be an integer. Usage: !predraft <id> add <round> <mon> (round 0 = any round).")
         pick = " ".join(args)
         for mon in league.get_all_pokemon():
             if str(mon).lower() == pick.strip().lower():
@@ -669,9 +673,8 @@ async def predraft(ctx, l_id, key, rd=0, *args):
         np.append((pick, rd))
         picker.set_next_pick(np)
     if key.lower() == "remove":
-        for p in np:
-            if p[0] == " ".join(args):
-                np.remove(p)
+        target = " ".join(args).strip().lower()
+        picker.set_next_pick([x for x in np if x[0].strip().lower() != target])
     return await ctx.send("Priority for automatic drafting: {}".format(
         "; ".join([f"{x[0]}, round: {x[1]}" for x in picker.get_next_pick()])))
 
