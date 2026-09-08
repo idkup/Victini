@@ -1,2 +1,5 @@
 discord.py>=2.4,<3
 requests>=2.31
+gspread>=6
+google-auth>=2
+Pillow>=10

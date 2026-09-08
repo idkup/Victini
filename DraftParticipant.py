@@ -16,6 +16,7 @@ class DraftParticipant:
         self._pokemon = []
         self._mega = False
         self._timer = datetime.timedelta(minutes=timer_start)
+        self._block_index = None         # index into sheet.BLOCK_INPUT_COLS (set at shuffle)
 
     def __setstate__(self, state):
         """Restore from pickle, filling defaults for attributes added in later
@@ -25,6 +26,7 @@ class DraftParticipant:
             "_next_pick": [],
             "_pokemon": [],
             "_mega": False,
+            "_block_index": None,
         })
         self.__dict__.update(state)
 
@@ -38,6 +40,14 @@ class DraftParticipant:
     def add_showdown(self, s_id: str):
         """Adds a Showdown ID to a participant."""
         self._showdown_id.append(s_id)
+
+    def get_block_index(self):
+        """Returns this participant's assigned sheet block index, or None."""
+        return self._block_index
+
+    def set_block_index(self, index):
+        """Assigns this participant a sheet block index (see sheet.BLOCK_INPUT_COLS)."""
+        self._block_index = index
 
     def get_discord(self) -> int:
         """Returns the participant's Discord ID."""

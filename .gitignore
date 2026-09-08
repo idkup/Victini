@@ -2,6 +2,8 @@
 files/key.txt
 files/leagues.txt
 files/speeds.json
+files/service_account.json
+files/sprites/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,8 +1,12 @@
 import json
+import re
 
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
 from ParseReplay import parse_replay
+import sheet
+import pokeapi
+import matchup_image
 import asyncio
 import discord
 from discord import Embed
@@ -48,57 +52,70 @@ async def require_admin(ctx):
     return False
 
 
-# Base Speed lookups for matchup tables are cached (in memory and on disk) so a
-# given species is fetched from PokeAPI at most once, and the blocking HTTP call
-# is run off the event loop.
-SPEED_CACHE_FILE = 'files/speeds.json'
-try:
-    with open(SPEED_CACHE_FILE) as _f:
-        _speed_cache = json.load(_f)
-except (FileNotFoundError, json.JSONDecodeError):
-    _speed_cache = {}
+# Base Speed lookups and sprites for matchups live in pokeapi.py (cached on disk).
 
 
-class SpeedLookupError(Exception):
-    """Raised when PokeAPI has no usable entry for a species."""
+# ---- Google Sheet sync (optional per league) --------------------------------
+
+def _sync_block_blocking(league, col, names, owner_name=None):
+    """Blocking sheet write: open the worksheet, optionally set the owner, rewrite
+    the block. Runs in an executor via push_block()."""
+    ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
+    if owner_name is not None:
+        sheet.set_block_owner(ws, col, owner_name)
+    return sheet.sync_block(ws, col, names)
 
 
-def _pokeapi_name(species):
-    """Map a drafted Pokemon's display name to the species slug PokeAPI expects."""
-    name = species.replace(" ", "-")
-    name += "-Single-Strike" if name == "Urshifu" else ""
-    name += "-Pom-Pom" if name == "Oricorio" else ""
-    name += "-Terastal" if name == "Terapagos" else ""
-    name += "-Female" if name in ("Basculegion", "Indeedee") else ""
-    name += "-Mask" if name in ("Ogerpon-Hearthflame", "Ogerpon-Wellspring", "Ogerpon-Cornerstone") else ""
-    name += "-Ordinary" if name == "Keldeo" else ""
-    name += "-Incarnate" if name in ("Tornadus", "Thundurus", "Landorus", "Enamorus") else ""
-    name += "-Hero" if name == "Palafin" else ""
-    return name.lower()
-
-
-async def base_speed(species):
-    """Base Speed stat for a species, cached across calls and persisted to disk."""
-    if species in _speed_cache:
-        return _speed_cache[species]
-    api_name = _pokeapi_name(species)
-    url = f"https://pokeapi.co/api/v2/pokemon/{api_name}"
+async def push_block(dest, league, participant, owner=False):
+    """Best-effort mirror of a participant's roster into their sheet block. No-op
+    if the league has no linked sheet or the player has no assigned block. Failures
+    are reported to `dest` (a ctx or channel) but never affect the draft itself."""
+    if league.get_sheet_id() is None:
+        return
+    idx = participant.get_block_index()
+    if idx is None or idx >= sheet.BLOCK_COUNT:
+        return
+    col = sheet.BLOCK_INPUT_COLS[idx]
+    names = [str(m) for m in participant.get_pokemon()]
+    owner_name = participant.get_name() if owner else None
     loop = asyncio.get_running_loop()
-    resp = await loop.run_in_executor(None, requests.get, url)
     try:
-        spe = resp.json()["stats"][5]["base_stat"]
-    except (json.JSONDecodeError, KeyError, IndexError):
-        raise SpeedLookupError(api_name)
-    _speed_cache[species] = spe
-    with open(SPEED_CACHE_FILE, "w") as f:
-        json.dump(_speed_cache, f)
-    return spe
+        overflow = await loop.run_in_executor(None, _sync_block_blocking, league, col, names, owner_name)
+    except Exception as e:
+        return await dest.send(f":warning: Sheet sync failed for {participant.get_name()}: {e}")
+    if overflow:
+        await dest.send(f":warning: {participant.get_name()}'s roster exceeds the "
+                        f"{sheet.PICK_ROWS}-slot block; extra Pokemon were not written to the sheet.")
 
 
-async def team_base_speeds(mons):
-    """{species: base speed} for a participant's team, sorted fastest first."""
-    speeds = {str(p): await base_speed(str(p)) for p in mons}
-    return dict(sorted(speeds.items(), key=lambda item: item[1], reverse=True))
+async def resync_all(dest, league):
+    """Rewrite every assigned block (owners + rosters) from current state, opening
+    the worksheet once. Used by !shuffle and !resync_sheet."""
+    if league.get_sheet_id() is None:
+        return await dest.send("No sheet is linked to this league. Use !set_sheet first.")
+
+    def work():
+        ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
+        done = []
+        for p in league.get_participants():
+            idx = p.get_block_index()
+            if idx is None or idx >= sheet.BLOCK_COUNT:
+                continue
+            col = sheet.BLOCK_INPUT_COLS[idx]
+            sheet.set_block_owner(ws, col, p.get_name())
+            sheet.sync_block(ws, col, [str(m) for m in p.get_pokemon()])
+            done.append(p.get_name())
+        return done
+
+    loop = asyncio.get_running_loop()
+    try:
+        done = await loop.run_in_executor(None, work)
+    except Exception as e:
+        return await dest.send(f":warning: Sheet resync failed: {e}")
+    if done:
+        await dest.send("Sheet blocks synced for: " + ", ".join(done))
+    else:
+        await dest.send("No blocks are assigned yet. Run !shuffle first.")
 
 
 @bot.command()
@@ -200,7 +217,8 @@ async def debug_draft(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     picker.set_mon(to_draft)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
+    await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_draft, picker.get_discord()))
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
@@ -326,7 +344,8 @@ async def debug_add_after_draft(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     player.set_mon(to_add)
-    return await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_add, player.get_discord()))
+    await ctx.send("Attempted to add {} to <@{}>'s team.".format(to_add, player.get_discord()))
+    await push_block(ctx, league, player)
 
 
 @bot.command()
@@ -351,7 +370,8 @@ async def debug_release(ctx, l_id, d_id, *args):
     else:
         return await ctx.send("The Pokemon you are attempting to remove is not recognized!")
     player.remove_mon(to_release)
-    return await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
+    await ctx.send("Attempted to remove {} from <@{}>'s team.".format(to_release, player.get_discord()))
+    await push_block(ctx, league, player)
 
 
 @bot.command()
@@ -428,6 +448,7 @@ async def draft(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
@@ -471,6 +492,7 @@ async def forcedraft(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, picker)
 
 
 @bot.command()
@@ -491,32 +513,62 @@ async def forceregister(ctx, d_id, name):
     await ctx.send("{} is now registered in league {}!".format(name, league.get_id()))
 
 
+# matchup speed modes: trailing flag on !mu selects base (default), Lv50 or Lv100.
+_SPEED_MODES = {
+    "50": ("Lv 50", pokeapi.speed_at_50), "l50": ("Lv 50", pokeapi.speed_at_50),
+    "100": ("Lv 100", pokeapi.speed_at_100), "l100": ("Lv 100", pokeapi.speed_at_100),
+}
+
+
 @bot.command(aliases=["mu", "gm"])
 async def generate_matchup(ctx, l_id, *args):
-    """Generates a matchup embed if possible."""
+    """Renders a team-vs-team matchup image (sprites + per-side Speed ladders).
+    Add a trailing `l50` or `l100` to show max Level-50 / Level-100 Speed instead
+    of base Speed."""
     league = league_by_id(l_id)
     if league is None:
         return await ctx.send("Invalid league ID.")
-    p1 = args[0]
-    p2 = args[1]
+    args = list(args)
+    label, speed_fn = "Base Spe", None
+    if args and args[-1].lower().lstrip("-+") in _SPEED_MODES:
+        label, speed_fn = _SPEED_MODES[args.pop().lower().lstrip("-+")]
+    if len(args) < 2:
+        return await ctx.send("Usage: !mu <league_id> <player1> <player2> [l50|l100]")
+    p1, p2 = args[0], args[1]
     p1_user = league.get_user(p1)
     if p1_user is False:
         return await ctx.send("{} is not participating in the draft.".format(p1))
     p2_user = league.get_user(p2)
     if p2_user is False:
         return await ctx.send("{} is not participating in the draft.".format(p2))
+
+    async def rows_for(user):
+        rows = []
+        for mon in user.get_pokemon():
+            species = str(mon)
+            base = await pokeapi.base_speed(species)
+            rows.append({"species": species,
+                         "speed": speed_fn(base) if speed_fn else base,
+                         "sprite": await pokeapi.sprite_bytes(species)})
+        return rows
+
     try:
-        p1_speeds = await team_base_speeds(p1_user.get_pokemon())
-        p2_speeds = await team_base_speeds(p2_user.get_pokemon())
-    except SpeedLookupError as e:
+        p1_rows = await rows_for(p1_user)
+        p2_rows = await rows_for(p2_user)
+    except pokeapi.SpeedLookupError as e:
         return await ctx.send(f"failed api call: {e}")
-    p1_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p1_speeds.items()]
-    p2_speedstrings = [f"{k}: {int((5+v*2+31+63)*1.1)}" for k, v in p2_speeds.items()]
-    e = Embed(title=f"{p1} vs {p2}")
-    e.add_field(name=p1, value="\n".join(p1_speedstrings), inline=True)
-    e.add_field(name="\u200B", value="\u200B", inline=True)
-    e.add_field(name=p2, value="\n".join(p2_speedstrings), inline=True)
-    await ctx.send(embed=e)
+
+    try:
+        png = matchup_image.render_matchup(p1, p1_rows, p2, p2_rows, speed_label=label)
+        return await ctx.send(file=discord.File(png, filename="matchup.png"))
+    except Exception as err:  # fall back to a text embed if rendering is unavailable
+        def line(r):
+            return f"{r['species']}: {r['speed']}"
+        e = Embed(title=f"{p1} vs {p2}")
+        e.add_field(name=p1, value="\n".join(line(r) for r in sorted(p1_rows, key=lambda r: -r["speed"])) or "\u200B", inline=True)
+        e.add_field(name="\u200B", value="\u200B", inline=True)
+        e.add_field(name=p2, value="\n".join(line(r) for r in sorted(p2_rows, key=lambda r: -r["speed"])) or "\u200B", inline=True)
+        return await ctx.send(content=f"(matchup image unavailable: {err})", embed=e)
 
 
 @bot.command()
@@ -669,6 +721,7 @@ async def release(ctx, *args):
     with open('files/leagues.txt', 'wb+') as f:
         pickle.dump(leagues, f)
         f.close()
+    await push_block(ctx, league, player)
 
 
 @bot.command()
@@ -772,9 +825,57 @@ async def shuffle(ctx):
         return await ctx.send("This is not a drafting channel.")
     if league.get_phase() != 0:
         return await ctx.send("Cannot shuffle participants in a league that has already started.")
+    participants = league.get_participants()
+    if league.get_sheet_id() is not None and len(participants) > sheet.BLOCK_COUNT:
+        return await ctx.send(
+            f"Too many participants ({len(participants)}) for the {sheet.BLOCK_COUNT} "
+            f"blocks on the linked sheet; cannot assign blocks.")
     league.shuffle()
-    return await ctx.send("Participants of league {} shuffled. Pick order: {}".format(
+    for i, p in enumerate(league.get_participants()):
+        p.set_block_index(i)
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+    await ctx.send("Participants of league {} shuffled. Pick order: {}".format(
         league.get_id(), ", ".join([p.get_name() for p in league.get_participants()])))
+    if league.get_sheet_id() is not None:
+        await resync_all(ctx, league)
+
+
+@bot.command()
+async def set_sheet(ctx, url):
+    """Links a Google Sheet to this league so picks auto-populate it. Admin command.
+    Accepts a full sheet URL (tab gid honored) or a bare spreadsheet id."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+    sheet_id = m.group(1) if m else url.strip()
+    g = re.search(r"[#?&]gid=(\d+)", url)
+    tab = int(g.group(1)) if g else None
+    league.set_sheet(sheet_id, tab)
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+    where = f"id `{sheet_id}`" + (f", tab {tab}" if tab is not None else "")
+    if not sheet.available():
+        return await ctx.send(
+            f"Sheet linked to league {league.get_id()} ({where}), but no service-account "
+            f"key is installed yet — syncing will start once `{sheet.CREDS_FILE}` is added "
+            f"and the sheet is shared with the service account's email.")
+    await ctx.send(f"Sheet linked to league {league.get_id()} ({where}). "
+                   f"Run !shuffle to assign blocks, then picks will sync automatically.")
+
+
+@bot.command()
+async def resync_sheet(ctx):
+    """Rewrites every assigned block on the linked sheet from current state. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    await resync_all(ctx, league)
 
 
 @bot.command()
@@ -816,7 +917,8 @@ async def substitute(ctx, old_id, new_id, new_name):
             break
     else:
         return await ctx.send("The player you are attempting to substitute is not in the league.")
-    return await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
+    await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
+    await push_block(ctx, league, p, owner=True)
 
 
 @bot.event
@@ -840,10 +942,13 @@ async def timer():
         for l in leagues:
             if l.get_phase() == 1:
                 msg = l.check_pick_deadline()
+                picker = l.take_pending_sync()
                 if msg:
                     channel = bot.get_channel(l.get_channel())
                     if channel is not None:
                         await channel.send(msg)
+                        if picker is not None:
+                            await push_block(channel, l, picker)
         await asyncio.sleep(1)
 
 
