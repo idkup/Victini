@@ -98,7 +98,7 @@ async def _flush_league_blocks(league):
         idx = participant.get_block_index()
         if idx is None or idx >= sheet.BLOCK_COUNT:
             continue
-        jobs.append((sheet.BLOCK_INPUT_COLS[idx],
+        jobs.append((idx,
                      [str(m) for m in participant.get_pokemon()],
                      participant.get_name() if owner else None,
                      participant.get_name()))
@@ -109,10 +109,10 @@ async def _flush_league_blocks(league):
     def work():
         ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
         overflowed = []
-        for col, names, owner_name, pname in jobs:
+        for block_idx, names, owner_name, pname in jobs:
             if owner_name is not None:
-                sheet.set_block_owner(ws, col, owner_name)
-            if sheet.sync_block(ws, col, names):
+                sheet.set_block_owner(ws, block_idx, owner_name)
+            if sheet.sync_block(ws, block_idx, names):
                 overflowed.append(pname)
         return overflowed
 
@@ -142,9 +142,8 @@ async def resync_all(dest, league):
             idx = p.get_block_index()
             if idx is None or idx >= sheet.BLOCK_COUNT:
                 continue
-            col = sheet.BLOCK_INPUT_COLS[idx]
-            sheet.set_block_owner(ws, col, p.get_name())
-            sheet.sync_block(ws, col, [str(m) for m in p.get_pokemon()])
+            sheet.set_block_owner(ws, idx, p.get_name())
+            sheet.sync_block(ws, idx, [str(m) for m in p.get_pokemon()])
             done.append(p.get_name())
         return done
 
@@ -572,7 +571,7 @@ async def generate_matchup(ctx, l_id, *args):
     if league is None:
         return await ctx.send("Invalid league ID.")
     args = list(args)
-    label, speed_fn = "Base Spe", None
+    label, speed_fn = "Speed", None
     if args and args[-1].lower().lstrip("-+") in _SPEED_MODES:
         label, speed_fn = _SPEED_MODES[args.pop().lower().lstrip("-+")]
     if len(args) < 2:

@@ -75,10 +75,13 @@ def _header(draw, x0, w, text, fill, font):
 
 def _draw_grid(img, draw, x0, rows, accent, tint, n_rows, name_f):
     grid_w = GRID_COLS * CELL_W
+    n = len(rows)
     draw.rectangle([x0, HEADER_H, x0 + grid_w, HEADER_H + n_rows * CELL_H], fill=tint)
     for i, r in enumerate(rows):
         col, row = i % GRID_COLS, i // GRID_COLS
-        cx, cy = x0 + col * CELL_W, HEADER_H + row * CELL_H
+        in_row = min(GRID_COLS, n - row * GRID_COLS)       # mons on this row
+        row_offset = (GRID_COLS - in_row) * CELL_W // 2     # center a short (last) row
+        cx, cy = x0 + row_offset + col * CELL_W, HEADER_H + row * CELL_H
         sp = _img(r.get("sprite"), LARGE)
         sx = cx + (CELL_W - LARGE) // 2
         if sp is not None:

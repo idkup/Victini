@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import re
 
-CREDS_FILE = "files/service_account_key.txt"
+CREDS_FILE = "files/service_account_key.json"
 
 # The dex sheet abbreviates Mega formes as "-M" (e.g. "Absol-M-Z"), while the
 # ruleset JSON / bot use the full "-Mega" spelling. Convert on the way to the
@@ -30,12 +30,16 @@ def to_sheet_name(name: str) -> str:
     """'Absol-Mega-Z' -> 'Absol-M-Z'; names without a Mega forme are unchanged."""
     return _MEGA_RE.sub("-M", name)
 
-# Input columns where each block's Pokemon names are typed, left to right.
+# Blocks are laid out in two stacked sets of nine columns. Within a set the
+# Pokemon-name input columns are (left to right):
 BLOCK_INPUT_COLS = ["O", "T", "Y", "AD", "AI", "AN", "AS", "AX", "BC"]
-BLOCK_COUNT = len(BLOCK_INPUT_COLS)
-PICK_ROW_START = 8          # first roster row in a block's input column
-PICK_ROWS = 11              # rows 8..18 inclusive
-OWNER_ROW = 5               # owner name row (merged region <col-1>5:<col+2>7)
+COLS_PER_SET = len(BLOCK_INPUT_COLS)
+# Each set's roster starts at PICK_ROW_STARTS[set] (owner name at OWNER_ROWS[set]);
+# the second set sits 16 rows below the first.
+PICK_ROW_STARTS = [8, 24]
+OWNER_ROWS = [5, 21]
+PICK_ROWS = 11              # roster rows per block (e.g. 8..18)
+BLOCK_COUNT = COLS_PER_SET * len(PICK_ROW_STARTS)   # 18 blocks total
 
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 _client = None
@@ -60,16 +64,24 @@ def index_to_col(idx: int) -> str:
     return col
 
 
-def block_range(input_col: str) -> str:
-    """Input column letter -> the roster range, e.g. 'O' -> 'O8:O18'."""
-    end = PICK_ROW_START + PICK_ROWS - 1
-    return f"{input_col}{PICK_ROW_START}:{input_col}{end}"
+def _block_loc(block_index: int):
+    """Block index (0..BLOCK_COUNT-1) -> (input col, roster start row, owner row).
+    Indices 0..8 are the top set, 9..17 the bottom set."""
+    row_set, col_i = divmod(block_index, COLS_PER_SET)
+    return BLOCK_INPUT_COLS[col_i], PICK_ROW_STARTS[row_set], OWNER_ROWS[row_set]
 
 
-def owner_cell(input_col: str) -> str:
-    """Input column letter -> the owner-name cell (top-left of the merge),
-    one column to the left at OWNER_ROW, e.g. 'O' -> 'N5'."""
-    return f"{index_to_col(col_to_index(input_col) - 1)}{OWNER_ROW}"
+def block_range(block_index: int) -> str:
+    """Roster range for a block, e.g. block 0 -> 'O8:O18', block 9 -> 'O24:O34'."""
+    col, start, _ = _block_loc(block_index)
+    return f"{col}{start}:{col}{start + PICK_ROWS - 1}"
+
+
+def owner_cell(block_index: int) -> str:
+    """Owner-name cell for a block (top-left of the merge, one column left of the
+    input column), e.g. block 0 -> 'N5', block 9 -> 'N21'."""
+    col, _, owner_row = _block_loc(block_index)
+    return f"{index_to_col(col_to_index(col) - 1)}{owner_row}"
 
 
 # ---- Google Sheets access (lazy) --------------------------------------------
@@ -105,20 +117,20 @@ def open_worksheet(sheet_id: str, tab=None):
     raise KeyError(f"No tab with gid {gid} in spreadsheet {sheet_id}")
 
 
-def sync_block(ws, input_col: str, team_names) -> bool:
+def sync_block(ws, block_index: int, team_names) -> bool:
     """Rewrite a block's input column from a roster. Returns True if the roster
     overflowed the block (more mons than PICK_ROWS)."""
     names = [to_sheet_name(str(n)) for n in team_names]
     overflow = len(names) > PICK_ROWS
     names = names[:PICK_ROWS] + [""] * (PICK_ROWS - min(len(names), PICK_ROWS))
-    ws.update(range_name=block_range(input_col),
+    ws.update(range_name=block_range(block_index),
               values=[[n] for n in names],
               value_input_option="USER_ENTERED")
     return overflow
 
 
-def set_block_owner(ws, input_col: str, name: str):
+def set_block_owner(ws, block_index: int, name: str):
     """Write the owner name into a block's owner cell."""
-    ws.update(range_name=owner_cell(input_col),
+    ws.update(range_name=owner_cell(block_index),
               values=[[name]],
               value_input_option="USER_ENTERED")
