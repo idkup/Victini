@@ -17,6 +17,8 @@ class DraftParticipant:
         self._mega = False
         self._timer = datetime.timedelta(minutes=timer_start)
         self._block_index = None         # index into sheet.BLOCK_INPUT_COLS (set at shuffle)
+        self._wins = 0                   # season record
+        self._losses = 0
 
     def __setstate__(self, state):
         """Restore from pickle, filling defaults for attributes added in later
@@ -27,15 +29,39 @@ class DraftParticipant:
             "_pokemon": [],
             "_mega": False,
             "_block_index": None,
+            "_wins": 0,
+            "_losses": 0,
         })
         self.__dict__.update(state)
 
     def __str__(self):
         """Behavior when stringified."""
-        return """{}'s draft in league {} ({} points remaining):
+        return """{}'s team in league {} ({}):
 ---
-{}""".format(self._name, self._league.get_id(), self._points,
+{}""".format(self._name, self._league.get_id(), self.get_record(),
              "\n".join(["{} ({}-{}) [{}p]".format(x, x.get_kills(), x.get_deaths(), x.get_cost()) for x in self._pokemon]))
+
+    def get_wins(self) -> int:
+        """Season wins (safe on older participants that predate the field)."""
+        return getattr(self, "_wins", 0)
+
+    def get_losses(self) -> int:
+        """Season losses (safe on older participants that predate the field)."""
+        return getattr(self, "_losses", 0)
+
+    def add_win(self):
+        self._wins = self.get_wins() + 1
+
+    def add_loss(self):
+        self._losses = self.get_losses() + 1
+
+    def get_record(self) -> str:
+        """W-L record as 'wins-losses'."""
+        return "{}-{}".format(self.get_wins(), self.get_losses())
+
+    def get_kill_diff(self) -> int:
+        """Total (kills - deaths) across this participant's Pokemon."""
+        return sum(m.get_kills() - m.get_deaths() for m in self._pokemon)
 
     def add_showdown(self, s_id: str):
         """Adds a Showdown ID to a participant."""

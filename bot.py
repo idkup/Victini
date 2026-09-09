@@ -615,6 +615,8 @@ async def generate_matchup(ctx, *args):
         p2_user = league.get_user(p2)
         if p2_user is False:
             return await ctx.send("{} is not participating in the draft.".format(p2))
+        p1 = f"{p1_user.get_name()} ({p1_user.get_record()})"   # header shows record
+        p2 = f"{p2_user.get_name()} ({p2_user.get_record()})"
         try:
             p1_rows = await _speed_rows([str(m) for m in p1_user.get_pokemon()], speed_fn)
             p2_rows = await _speed_rows([str(m) for m in p2_user.get_pokemon()], speed_fn)
@@ -840,16 +842,31 @@ async def replay(ctx, replay_url):
                 loser_id = participant.get_discord()
                 break
 
+    # Record the result into standings (schedule-unchecked, deduped by URL).
+    scored = ""
+    if winner_id is not None and loser_id is not None:
+        if league.record_result(winner_id, loser_id, replay_url):
+            with open('files/leagues.txt', 'wb+') as f:
+                pickle.dump(leagues, f)
+                f.close()
+            w = league._participant_by_id(winner_id)
+            lo = league._participant_by_id(loser_id)
+            scored = f"\n\n**Records:** {w.get_name()} ({w.get_record()}), {lo.get_name()} ({lo.get_record()})"
+        else:
+            scored = "\n\n*(Result already recorded — not counted again.)*"
+    else:
+        scored = "\n\n*(Could not score: a team did not match a league participant.)*"
+
     winner_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.winner.team)
     loser_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.loser.team)
     return await ctx.send(f"""Result: ||**<@{winner_id}>** won against **<@{loser_id}>** {
     sum(map(check_alive, parsed_battle.winner.team))} - {sum(map(check_alive, parsed_battle.loser.team))}||
 
-||**{parsed_battle.winner.psname}**: 
+||**{parsed_battle.winner.psname}**:
 {winner_team_stats}||
 
 ||**{parsed_battle.loser.psname}**:
-{loser_team_stats}||""")
+{loser_team_stats}||{scored}""")
 
 
 @bot.command()
@@ -988,6 +1005,178 @@ async def substitute(ctx, old_id, new_id, new_name):
         return await ctx.send("The player you are attempting to substitute is not in the league.")
     await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
     await push_block(ctx, league, p, owner=True)
+
+
+def _save_leagues():
+    with open('files/leagues.txt', 'wb+') as f:
+        pickle.dump(leagues, f)
+        f.close()
+
+
+def _pname(x):
+    return "TBD" if x is None else x.get_name()
+
+
+@bot.command()
+async def generate_schedule(ctx, weeks="8"):
+    """Generates the round-robin regular-season schedule. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    if league.get_phase() < 2:
+        return await ctx.send("Finish the draft before generating a schedule.")
+    if len(league.get_participants()) < 2:
+        return await ctx.send("Need at least two participants.")
+    try:
+        weeks = int(weeks)
+    except ValueError:
+        return await ctx.send("Weeks must be an integer.")
+    league.generate_schedule(weeks)
+    _save_leagues()
+    return await ctx.send(f"Generated a {weeks}-week schedule for league {league.get_id()}. "
+                          f"View it with !schedule {league.get_id()} or !fullschedule {league.get_id()}.")
+
+
+@bot.command()
+async def schedule(ctx, l_id, week=None):
+    """!schedule <league_id> shows your own schedule; add a week number to see that
+    week's pairings (with results/links for completed games)."""
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    sched = league.get_schedule()
+    if not sched:
+        return await ctx.send("No schedule yet — an admin can run !generate_schedule.")
+
+    if week is None:
+        me = league._participant_by_id(ctx.author.id)
+        if me is None:
+            return await ctx.send(f"You are not in league {l_id}. Try !fullschedule {l_id}.")
+        lines = []
+        for wk, pairings in enumerate(sched, 1):
+            opp = next((b if a is me else a for a, b in pairings if me in (a, b)), None)
+            if opp is None:
+                lines.append(f"Week {wk}: *BYE*")
+                continue
+            res = league.result_for(me, opp)
+            tag = ""
+            if res:
+                tag = f" — {'W' if res[0] is me else 'L'}" + (f" <{res[2]}>" if res[2] else "")
+            lines.append(f"Week {wk}: vs {opp.get_name()}{tag}")
+        e = Embed(title=f"{me.get_name()}'s schedule — league {league.get_id()} ({me.get_record()})")
+        e.description = "\n".join(lines)
+        return await ctx.send(embed=e)
+
+    try:
+        week = int(week)
+    except ValueError:
+        return await ctx.send("Week must be an integer.")
+    if not 1 <= week <= len(sched):
+        return await ctx.send(f"Week must be between 1 and {len(sched)}.")
+    lines = []
+    for a, b in sched[week - 1]:
+        if a is None or b is None:
+            lines.append(f"{_pname(a or b)} — *BYE*")
+            continue
+        res = league.result_for(a, b)
+        if res:
+            w, lo = res[0], res[1]
+            link = f"  <{res[2]}>" if res[2] else ""
+            lines.append(f"**{w.get_name()}** def. {lo.get_name()}{link}")
+        else:
+            lines.append(f"{a.get_name()} vs {b.get_name()}")
+    e = Embed(title=f"League {league.get_id()} — Week {week}")
+    e.description = "\n".join(lines) or "No pairings."
+    return await ctx.send(embed=e)
+
+
+@bot.command()
+async def fullschedule(ctx, l_id):
+    """Shows the whole league schedule as a table (one column per week)."""
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    sched = league.get_schedule()
+    if not sched:
+        return await ctx.send("No schedule yet — an admin can run !generate_schedule.")
+    e = Embed(title=f"League {league.get_id()} — Full schedule")
+    for wk, pairings in enumerate(sched, 1):
+        rows = []
+        for a, b in pairings:
+            if a is None or b is None:
+                rows.append(f"{_pname(a or b)}: BYE")
+                continue
+            res = league.result_for(a, b)
+            if res:
+                rows.append(f"{a.get_name()} v {b.get_name()} → {res[0].get_name()}")
+            else:
+                rows.append(f"{a.get_name()} v {b.get_name()}")
+        e.add_field(name=f"Week {wk}", value="\n".join(rows) or "—", inline=True)
+    return await ctx.send(embed=e)
+
+
+@bot.command()
+async def standings(ctx, l_id):
+    """Shows the standings (wins, then kill differential, then head-to-head)."""
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    ranked = league.standings()
+    if not ranked:
+        return await ctx.send("No participants yet.")
+    lines = [f"{i}. {p.get_name()} ({p.get_record()}) — kill diff {p.get_kill_diff():+d}"
+             for i, p in enumerate(ranked, 1)]
+    e = Embed(title=f"League {league.get_id()} — Standings")
+    e.description = "\n".join(lines)
+    return await ctx.send(embed=e)
+
+
+@bot.command()
+async def playoffs(ctx, size="8"):
+    """Seeds a single-elimination playoff bracket from current standings. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    if len(league.get_participants()) < 2:
+        return await ctx.send("Need at least two participants.")
+    try:
+        size = int(size)
+    except ValueError:
+        return await ctx.send("Size must be an integer.")
+    league.generate_bracket(size)
+    _save_leagues()
+    return await ctx.send(f"Seeded a top-{size} single-elimination bracket for league "
+                          f"{league.get_id()}. View it with !bracket {league.get_id()}.")
+
+
+@bot.command()
+async def bracket(ctx, l_id):
+    """Displays the playoff bracket and recorded results."""
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    br = league.get_bracket()
+    if not br:
+        return await ctx.send("No playoff bracket yet — an admin can run !playoffs.")
+    round_names = {1: "Final", 2: "Semifinals", 4: "Quarterfinals"}
+    e = Embed(title=f"League {league.get_id()} — Playoff bracket")
+    for rnd in br:
+        rows = []
+        for a, b, w in rnd:
+            if (a is None) ^ (b is None) and w is not None:
+                rows.append(f"{w.get_name()} — bye")
+            else:
+                line = f"{_pname(a)} vs {_pname(b)}"
+                if w is not None:
+                    line += f" → **{w.get_name()}**"
+                rows.append(line)
+        e.add_field(name=round_names.get(len(rnd), f"Round of {len(rnd) * 2}"),
+                    value="\n".join(rows) or "—", inline=False)
+    return await ctx.send(embed=e)
 
 
 @bot.event
