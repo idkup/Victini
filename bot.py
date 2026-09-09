@@ -1037,7 +1037,28 @@ async def substitute(ctx, old_id, new_id, new_name):
             break
     else:
         return await ctx.send("The player you are attempting to substitute is not in the league.")
+    _save_leagues()
     await ctx.send("<@{}> has been substituted for <@{}>!".format(old_id, new_id))
+    await push_block(ctx, league, p, owner=True)
+
+
+@bot.command()
+async def rename(ctx, uid, new_name):
+    """Renames a participant in place, keeping their id, roster, record, and Showdown
+    IDs. Like !substitute <uid> <uid> <name> but without swapping the player out."""
+    if await require_admin(ctx):
+        return
+    league = league_by_channel(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a drafting channel.")
+    for p in league.get_participants():
+        if int(p.get_discord()) == int(uid):
+            p.rename(new_name)
+            break
+    else:
+        return await ctx.send("The player you are attempting to rename is not in the league.")
+    _save_leagues()
+    await ctx.send("<@{}> has been renamed to {}.".format(uid, new_name))
     await push_block(ctx, league, p, owner=True)
 
 

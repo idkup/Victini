@@ -166,3 +166,8 @@ class DraftParticipant:
         self._discord_id = d_id
         self._name = name
         self._showdown_id = []
+
+    def rename(self, name: str):
+        """Renames this participant in place, keeping the Discord ID, Showdown IDs,
+        roster, and season record (unlike substitute, which swaps the player out)."""
+        self._name = name
