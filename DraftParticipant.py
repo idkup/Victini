@@ -36,9 +36,9 @@ class DraftParticipant:
 
     def __str__(self):
         """Behavior when stringified."""
-        return """{}'s team in league {} ({}):
+        return """{}'s team in league {} ({}, {} points remaining):
 ---
-{}""".format(self._name, self._league.get_id(), self.get_record(),
+{}""".format(self._name, self._league.get_id(), self.get_record(), self._points,
              "\n".join(["{} ({}-{}) [{}p]".format(x, x.get_kills(), x.get_deaths(), x.get_cost()) for x in self._pokemon]))
 
     def get_wins(self) -> int:
@@ -139,14 +139,15 @@ class DraftParticipant:
         cost = mon.get_cost()
         if mon.get_owner() is not None:
             return "This Pokemon has already been drafted!"
-        if self._points - cost < 9 - len(self._pokemon) or self._points - cost < 0:
+        max_mons = self._league.get_max_mons()
+        if len(self._pokemon) >= max_mons:
+            return "You have already drafted {} Pokemon.".format(max_mons)
+        if self._points - cost < self._league.get_min_mons() - len(self._pokemon) or self._points - cost < 0:
             return "You do not have enough points to draft this Pokemon."
         if mon.is_mega():
             if self._mega:
                 return "You have already drafted a Mega Evolution."
             self._mega = True
-        if len(self._pokemon) >= 12:
-            return "You have already drafted 12 Pokemon."
         self._pokemon.append(mon)
         self._points -= cost
         mon.set_owner(self)

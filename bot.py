@@ -65,6 +65,12 @@ async def require_admin(ctx):
 SYNC_COOLDOWN = 30
 _sync_state = {}   # league id -> {"last": float, "task": Task|None, "dirty": {pid:(participant,owner)}, "dest": messageable}
 
+# Serializes draft-progression sends between the manual !draft/!forcedraft handlers
+# and the timer loop (which auto-resolves predrafts and missed picks). Without it a
+# predraft the timer executes for the *next* picker can race ahead of the manual
+# pick that advanced the turn to them, printing out of order.
+draft_lock = asyncio.Lock()
+
 
 async def push_block(dest, league, participant, owner=False):
     """Queue a best-effort sheet sync of a participant's block. No-op if the league
@@ -131,9 +137,25 @@ async def _flush_league_blocks(league):
 
 async def resync_all(dest, league):
     """Rewrite every assigned block (owners + rosters) from current state, opening
-    the worksheet once. Used by !shuffle and !resync_sheet."""
+    the worksheet once. Used by !shuffle and !resync_sheet. Any participant without
+    a block yet is assigned a free one first, so a sheet linked after the draft has
+    finished (when !shuffle is no longer allowed) can still be populated."""
     if league.get_sheet_id() is None:
         return await dest.send("No sheet is linked to this league. Use !set_sheet first.")
+
+    participants = league.get_participants()
+    unassigned = [p for p in participants if p.get_block_index() is None]
+    if unassigned:
+        used = {p.get_block_index() for p in participants if p.get_block_index() is not None}
+        free = [i for i in range(sheet.BLOCK_COUNT) if i not in used]
+        if len(free) < len(unassigned):
+            return await dest.send(
+                f"Too many participants ({len(participants)}) for the {sheet.BLOCK_COUNT} "
+                f"blocks on the linked sheet; cannot assign blocks.")
+        for p, idx in zip(unassigned, free):
+            p.set_block_index(idx)
+        with open('files/leagues.txt', 'wb+') as f:
+            pickle.dump(leagues, f)
 
     def work():
         ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
@@ -157,7 +179,7 @@ async def resync_all(dest, league):
     if done:
         await dest.send("Sheet blocks synced for: " + ", ".join(done))
     else:
-        await dest.send("No blocks are assigned yet. Run !shuffle first.")
+        await dest.send("No participants to sync yet.")
 
 
 @bot.command()
@@ -486,11 +508,12 @@ async def draft(ctx, *args):
             break
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
-    await ctx.send(league.draft(picker, to_draft))
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
-    await push_block(ctx, league, picker)
+    async with draft_lock:
+        await ctx.send(league.draft(picker, to_draft))
+        with open('files/leagues.txt', 'wb+') as f:
+            pickle.dump(leagues, f)
+            f.close()
+        await push_block(ctx, league, picker)
 
 
 @bot.command()
@@ -522,19 +545,21 @@ async def forcedraft(ctx, *args):
     name = " ".join(args)
     picker = league.get_pickorder()[league.get_picking()[0]]
     if name == "SKIP":
-        league.add_missed_pick(picker)
-        return await ctx.send(league.next_pick())
+        async with draft_lock:
+            league.add_missed_pick(picker)
+            return await ctx.send(league.next_pick())
     for mon in league.get_all_pokemon():
         if str(mon).lower() == name.strip().lower():
             to_draft = mon
             break
     else:
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
-    await ctx.send(league.draft(picker, to_draft))
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
-    await push_block(ctx, league, picker)
+    async with draft_lock:
+        await ctx.send(league.draft(picker, to_draft))
+        with open('files/leagues.txt', 'wb+') as f:
+            pickle.dump(leagues, f)
+            f.close()
+        await push_block(ctx, league, picker)
 
 
 @bot.command()
@@ -658,21 +683,30 @@ async def info(ctx, l_id, *args):
 
 
 @bot.command()
-async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120):
-    """Starts a new DraftLeague()."""
+async def init(ctx, l_id, tierlist, init_time=540, increment=180, points=120,
+               min_mons=9, max_mons=11):
+    """Starts a new DraftLeague(). Roster size defaults to 9-11 Pokemon."""
     if await require_admin(ctx):
         return
     try:
         l_id = int(l_id)
     except ValueError:
         return await ctx.send("Please enter a valid ID.")
+    try:
+        min_mons, max_mons = int(min_mons), int(max_mons)
+    except ValueError:
+        return await ctx.send("Roster minimum and maximum must be integers.")
+    if min_mons > max_mons:
+        return await ctx.send("Roster minimum cannot exceed the maximum.")
     for league in leagues:
         if league.get_id() == l_id:
             return await ctx.send("League already exists with this ID.")
         if league.get_channel() == ctx.channel.id:
             return await ctx.send("Another league is using this channel as its drafting channel.")
-    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id, init_time, increment, points))
-    return await ctx.send("New league initialized with ID {}.".format(l_id))
+    leagues.append(DraftLeague(l_id, tierlist, ctx.channel.id, init_time, increment, points,
+                               min_mons, max_mons))
+    return await ctx.send("New league initialized with ID {} ({}-{} Pokemon).".format(
+        l_id, min_mons, max_mons))
 
 
 @bot.command()
@@ -1199,14 +1233,15 @@ async def timer():
     while True:
         for l in leagues:
             if l.get_phase() == 1:
-                msg = l.check_pick_deadline()
-                picker = l.take_pending_sync()
-                if msg:
-                    channel = bot.get_channel(l.get_channel())
-                    if channel is not None:
-                        await channel.send(msg)
-                        if picker is not None:
-                            await push_block(channel, l, picker)
+                async with draft_lock:
+                    msg = l.check_pick_deadline()
+                    picker = l.take_pending_sync()
+                    if msg:
+                        channel = bot.get_channel(l.get_channel())
+                        if channel is not None:
+                            await channel.send(msg)
+                            if picker is not None:
+                                await push_block(channel, l, picker)
         await asyncio.sleep(1)
 
 
