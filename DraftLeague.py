@@ -11,7 +11,8 @@ from typing import Union
 class DraftLeague:
     """Represents a Draft League."""
 
-    def __init__(self, league_id, tierlist, channel, timer_start, increment, pts):
+    def __init__(self, league_id, tierlist, channel, timer_start, increment, pts,
+                 min_mons=9, max_mons=11):
         """Initializes the Draft League and tiers Pokemon."""
         self._league_id = league_id
         self._participants = []
@@ -20,6 +21,8 @@ class DraftLeague:
         self._picking = None
         self._pickorder = []
         self._points_per_participant = pts
+        self._min_mons = int(min_mons)   # roster size bounds enforced in set_mon
+        self._max_mons = int(max_mons)
         self._timer_start = int(timer_start)
         self._increment = int(increment)
         self._channel = channel
@@ -56,6 +59,8 @@ class DraftLeague:
             "_seen_replays": set(),
             "_bracket": None,
             "_playoff_size": 8,
+            "_min_mons": 9,
+            "_max_mons": 11,
         })
         self.__dict__.update(state)
 
@@ -212,6 +217,14 @@ class DraftLeague:
     def get_start_points(self) -> int:
         """Returns the starting points per player of the league."""
         return self._points_per_participant
+
+    def get_min_mons(self) -> int:
+        """Minimum roster size (getattr-safe for leagues predating the field)."""
+        return getattr(self, "_min_mons", 9)
+
+    def get_max_mons(self) -> int:
+        """Maximum roster size (getattr-safe for leagues predating the field)."""
+        return getattr(self, "_max_mons", 11)
 
     def get_start_timer(self) -> int:
         """Returns league timer starter."""
