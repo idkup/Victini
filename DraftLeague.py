@@ -2,7 +2,7 @@ from DraftParticipant import DraftParticipant
 from DraftPokemon import DraftPokemon
 import datetime
 import json
-import pickle
+import os
 import random
 import season
 from typing import Union
@@ -35,7 +35,11 @@ class DraftLeague:
         self._seen_replays = set()       # replay URLs already counted (double-submit guard)
         self._bracket = None             # single-elim rounds: [[[a, b, winner], ...], ...]
         self._playoff_size = 8
-        with open('files/{}.json'.format(tierlist), 'r', encoding='utf-8') as file:
+        # Tierlist JSONs are bundled read-only assets that ship next to the code,
+        # so resolve them relative to this file rather than the process CWD.
+        tierlist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     'files', '{}.json'.format(tierlist))
+        with open(tierlist_path, 'r', encoding='utf-8') as file:
             d = json.load(file)
             file.close()
         self._tierlist = [DraftPokemon(k, v, "-Mega" in k or "Mega " in k) for k, v in d.items()]
@@ -256,12 +260,6 @@ class DraftLeague:
             self._pickorder[self._picking[0]].get_discord(),
             (self._picking[1] + current_picker.get_timer()).replace(microsecond=0),
             round(current_picker.get_timer().total_seconds() / 60))
-
-    def save(self):
-        """Pickles and saves the league in a text file."""
-        with open('files/league.txt', 'wb+') as file:
-            pickle.dump(self, file)
-            file.close()
 
     def set_increment(self, s: int):
         """Changes the increment for the drafting phase."""

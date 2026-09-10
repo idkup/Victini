@@ -1,6 +1,10 @@
 import json
+import os
 import re
+import shutil
+import tempfile
 import time
+import traceback
 
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
@@ -11,12 +15,23 @@ import matchup_image
 import asyncio
 import discord
 from discord import Embed
-from discord.ext import commands
+from discord.ext import commands, tasks
 import pickle
 import requests
 
 admin_ids = [590336288935378950, 167690209821982721, 173733502041325569, 263127883973787648, 194925053463363585,
              175763247176220672, 142796252243951616, 974026524003024917]
+
+# Mutable/secret runtime data (the pickled leagues and the bot token) live in
+# DATA_DIR. It defaults to the `files/` dir next to this script, but set
+# VICTINI_DATA_DIR to an absolute path to keep state on a mounted volume that
+# survives container restarts. Point the env var at a *separate* directory from
+# the code (e.g. /data), NOT a bind-mount over `files/`, or it would shadow the
+# bundled tierlist JSONs baked into the image.
+DATA_DIR = os.environ.get("VICTINI_DATA_DIR") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "files")
+LEAGUES_FILE = os.path.join(DATA_DIR, "leagues.txt")
+KEY_FILE = os.path.join(DATA_DIR, "key.txt")
 
 # discord.py 2.x requires intents to be declared explicitly. Prefix commands
 # read message text, which is a privileged intent: message_content must be
@@ -69,7 +84,16 @@ _sync_state = {}   # league id -> {"last": float, "task": Task|None, "dirty": {p
 # and the timer loop (which auto-resolves predrafts and missed picks). Without it a
 # predraft the timer executes for the *next* picker can race ahead of the manual
 # pick that advanced the turn to them, printing out of order.
-draft_lock = asyncio.Lock()
+#
+# Created in setup_hook, NOT here: on Python 3.9 asyncio.Lock() binds to the event
+# loop that exists at construction time. At import there's no running loop, so it
+# would bind to the default main-thread loop -- a *different* loop than the one
+# discord.py runs the bot on -- and the first `async with draft_lock` on the bot's
+# loop raises "got Future attached to a different loop", killing the timer task.
+# (3.10+ lazily binds to the running loop, which is why this only bit in the
+# 3.9-alpine container and never locally.) Building it inside setup_hook binds it
+# to the bot's own loop; every user of it runs on that same loop.
+draft_lock = None
 
 
 async def push_block(dest, league, participant, owner=False):
@@ -154,8 +178,7 @@ async def resync_all(dest, league):
                 f"blocks on the linked sheet; cannot assign blocks.")
         for p, idx in zip(unassigned, free):
             p.set_block_index(idx)
-        with open('files/leagues.txt', 'wb+') as f:
-            pickle.dump(leagues, f)
+        _save_leagues()
 
     def work():
         ws = sheet.open_worksheet(league.get_sheet_id(), league.get_sheet_tab())
@@ -510,9 +533,7 @@ async def draft(ctx, *args):
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     async with draft_lock:
         await ctx.send(league.draft(picker, to_draft))
-        with open('files/leagues.txt', 'wb+') as f:
-            pickle.dump(leagues, f)
-            f.close()
+        _save_leagues()
         await push_block(ctx, league, picker)
 
 
@@ -556,9 +577,7 @@ async def forcedraft(ctx, *args):
         return await ctx.send("The Pokemon you are attempting to draft is not recognized!")
     async with draft_lock:
         await ctx.send(league.draft(picker, to_draft))
-        with open('files/leagues.txt', 'wb+') as f:
-            pickle.dump(leagues, f)
-            f.close()
+        _save_leagues()
         await push_block(ctx, league, picker)
 
 
@@ -795,9 +814,7 @@ async def register(ctx):
     league.add_participant(
         DraftParticipant(league, ctx.author.id, ctx.author.name, league.get_start_timer(), league.get_start_points()))
     await ctx.send("{}, you are now registered in league {}!".format(ctx.author.mention, league.get_id()))
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
+    _save_leagues()
 
 
 @bot.command()
@@ -823,9 +840,7 @@ async def release(ctx, *args):
         return await ctx.send("You do not own {}!".format(name))
     player.remove_mon(to_release)
     await ctx.send("<@{}> has released {}!".format(player.get_discord(), name.title()))
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
+    _save_leagues()
     await push_block(ctx, league, player)
 
 
@@ -880,9 +895,7 @@ async def replay(ctx, replay_url):
     scored = ""
     if winner_id is not None and loser_id is not None:
         if league.record_result(winner_id, loser_id, replay_url):
-            with open('files/leagues.txt', 'wb+') as f:
-                pickle.dump(leagues, f)
-                f.close()
+            _save_leagues()
             w = league._participant_by_id(winner_id)
             lo = league._participant_by_id(loser_id)
             scored = f"\n\n**Records:** {w.get_name()} ({w.get_record()}), {lo.get_name()} ({lo.get_record()})"
@@ -929,9 +942,7 @@ async def save(ctx):
     """Backs up all leagues."""
     if await require_admin(ctx):
         return
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
+    _save_leagues()
     await ctx.send("All leagues backed up.")
 
 
@@ -953,8 +964,7 @@ async def shuffle(ctx):
     league.shuffle()
     for i, p in enumerate(league.get_participants()):
         p.set_block_index(i)
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
+    _save_leagues()
     await ctx.send("Participants of league {} shuffled. Pick order: {}".format(
         league.get_id(), ", ".join([p.get_name() for p in league.get_participants()])))
     if league.get_sheet_id() is not None:
@@ -975,8 +985,7 @@ async def set_sheet(ctx, url):
     g = re.search(r"[#?&]gid=(\d+)", url)
     tab = int(g.group(1)) if g else None
     league.set_sheet(sheet_id, tab)
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
+    _save_leagues()
     where = f"id `{sheet_id}`" + (f", tab {tab}" if tab is not None else "")
     if not sheet.available():
         return await ctx.send(
@@ -1063,9 +1072,42 @@ async def rename(ctx, uid, new_name):
 
 
 def _save_leagues():
-    with open('files/leagues.txt', 'wb+') as f:
-        pickle.dump(leagues, f)
-        f.close()
+    """Atomically persist all leagues to LEAGUES_FILE.
+
+    Pickles to a temp file in the same directory, fsyncs it, then os.replace()s it
+    into place (atomic on POSIX and Windows) so a crash mid-write can never leave a
+    truncated/corrupt save. The previous good file is kept as `<name>.bak`."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=DATA_DIR, prefix=".leagues-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            pickle.dump(leagues, f)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.path.exists(LEAGUES_FILE):
+            try:
+                shutil.copy2(LEAGUES_FILE, LEAGUES_FILE + ".bak")
+            except OSError:
+                pass                      # a missing backup must never block the save
+        os.replace(tmp, LEAGUES_FILE)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _load_leagues():
+    """Load leagues from LEAGUES_FILE, falling back to the .bak if the primary file
+    is missing or unreadable. Returns [] if nothing loadable exists."""
+    for path in (LEAGUES_FILE, LEAGUES_FILE + ".bak"):
+        try:
+            with open(path, "rb") as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            continue
+        except Exception as e:                # corrupt primary -> try the backup
+            print(f"warning: could not load {path}: {e}")
+            continue
+    return []
 
 
 def _pname(x):
@@ -1236,10 +1278,16 @@ async def bracket(ctx, l_id):
 
 @bot.event
 async def setup_hook():
-    """Runs once during login (discord.py 2.x). Starts the draft-phase timer
-    here rather than in on_ready, which can fire multiple times on reconnect
-    and would spawn duplicate timer loops."""
-    bot.loop.create_task(timer())
+    """Runs once during login (discord.py 2.x), on the bot's own event loop.
+    Builds draft_lock here (see its definition — binding it to this loop avoids a
+    cross-loop crash on Python 3.9) and starts the draft-phase timer here rather
+    than in on_ready, which can fire multiple times on reconnect and would spawn
+    duplicate timer loops."""
+    global draft_lock
+    if draft_lock is None:
+        draft_lock = asyncio.Lock()
+    if not timer.is_running():
+        timer.start()
 
 
 @bot.event
@@ -1248,12 +1296,19 @@ async def on_ready():
     print(f'ready — logged in as {bot.user}')
 
 
+@tasks.loop(seconds=1)
 async def timer():
-    """Timer for draft phase."""
-    await bot.wait_until_ready()
-    while True:
-        for l in leagues:
-            if l.get_phase() == 1:
+    """Draft-phase poll: fires standing predrafts and enforces pick deadlines.
+
+    Managed by discord.ext.tasks so the loop object holds a strong reference to
+    its own task (a bare create_task is only weakly referenced and can be GC'd
+    mid-run, which silently killed this loop in the container). Each league is
+    processed under its own try/except so one bad league or a transient send
+    error logs and the poll keeps ticking; a `timer.error` backstop relaunches
+    the loop if anything still escapes."""
+    for l in leagues:
+        if l.get_phase() == 1:
+            try:
                 async with draft_lock:
                     msg = l.check_pick_deadline()
                     picker = l.take_pending_sync()
@@ -1263,16 +1318,25 @@ async def timer():
                             await channel.send(msg)
                             if picker is not None:
                                 await push_block(channel, l, picker)
-        await asyncio.sleep(1)
+            except Exception:
+                traceback.print_exc()
 
 
-with open('files/key.txt') as key_file:
+@timer.before_loop
+async def _timer_before():
+    await bot.wait_until_ready()
+
+
+@timer.error
+async def _timer_error(exc):
+    # tasks.loop only auto-retries a fixed set of network errors; anything else
+    # stops the loop, so log it and relaunch rather than dying silently.
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
+    timer.restart()
+
+
+with open(KEY_FILE) as key_file:
     bot_key = key_file.readline()
     key_file.close()
-try:
-    with open('files/leagues.txt', 'rb') as backup:
-        leagues = pickle.load(backup)
-        backup.close()
-except FileNotFoundError:
-    leagues = []
+leagues = _load_leagues()
 bot.run(bot_key.strip())
