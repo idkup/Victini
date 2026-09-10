@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import time
+import traceback
 
 from DraftLeague import DraftLeague
 from DraftParticipant import DraftParticipant
@@ -14,7 +15,7 @@ import matchup_image
 import asyncio
 import discord
 from discord import Embed
-from discord.ext import commands
+from discord.ext import commands, tasks
 import pickle
 import requests
 
@@ -1271,7 +1272,8 @@ async def setup_hook():
     """Runs once during login (discord.py 2.x). Starts the draft-phase timer
     here rather than in on_ready, which can fire multiple times on reconnect
     and would spawn duplicate timer loops."""
-    bot.loop.create_task(timer())
+    if not timer.is_running():
+        timer.start()
 
 
 @bot.event
@@ -1280,12 +1282,19 @@ async def on_ready():
     print(f'ready — logged in as {bot.user}')
 
 
+@tasks.loop(seconds=1)
 async def timer():
-    """Timer for draft phase."""
-    await bot.wait_until_ready()
-    while True:
-        for l in leagues:
-            if l.get_phase() == 1:
+    """Draft-phase poll: fires standing predrafts and enforces pick deadlines.
+
+    Managed by discord.ext.tasks so the loop object holds a strong reference to
+    its own task (a bare create_task is only weakly referenced and can be GC'd
+    mid-run, which silently killed this loop in the container). Each league is
+    processed under its own try/except so one bad league or a transient send
+    error logs and the poll keeps ticking; a `timer.error` backstop relaunches
+    the loop if anything still escapes."""
+    for l in leagues:
+        if l.get_phase() == 1:
+            try:
                 async with draft_lock:
                     msg = l.check_pick_deadline()
                     picker = l.take_pending_sync()
@@ -1295,7 +1304,21 @@ async def timer():
                             await channel.send(msg)
                             if picker is not None:
                                 await push_block(channel, l, picker)
-        await asyncio.sleep(1)
+            except Exception:
+                traceback.print_exc()
+
+
+@timer.before_loop
+async def _timer_before():
+    await bot.wait_until_ready()
+
+
+@timer.error
+async def _timer_error(exc):
+    # tasks.loop only auto-retries a fixed set of network errors; anything else
+    # stops the loop, so log it and relaunch rather than dying silently.
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
+    timer.restart()
 
 
 with open(KEY_FILE) as key_file:
