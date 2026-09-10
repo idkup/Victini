@@ -84,7 +84,16 @@ _sync_state = {}   # league id -> {"last": float, "task": Task|None, "dirty": {p
 # and the timer loop (which auto-resolves predrafts and missed picks). Without it a
 # predraft the timer executes for the *next* picker can race ahead of the manual
 # pick that advanced the turn to them, printing out of order.
-draft_lock = asyncio.Lock()
+#
+# Created in setup_hook, NOT here: on Python 3.9 asyncio.Lock() binds to the event
+# loop that exists at construction time. At import there's no running loop, so it
+# would bind to the default main-thread loop -- a *different* loop than the one
+# discord.py runs the bot on -- and the first `async with draft_lock` on the bot's
+# loop raises "got Future attached to a different loop", killing the timer task.
+# (3.10+ lazily binds to the running loop, which is why this only bit in the
+# 3.9-alpine container and never locally.) Building it inside setup_hook binds it
+# to the bot's own loop; every user of it runs on that same loop.
+draft_lock = None
 
 
 async def push_block(dest, league, participant, owner=False):
@@ -1269,9 +1278,14 @@ async def bracket(ctx, l_id):
 
 @bot.event
 async def setup_hook():
-    """Runs once during login (discord.py 2.x). Starts the draft-phase timer
-    here rather than in on_ready, which can fire multiple times on reconnect
-    and would spawn duplicate timer loops."""
+    """Runs once during login (discord.py 2.x), on the bot's own event loop.
+    Builds draft_lock here (see its definition — binding it to this loop avoids a
+    cross-loop crash on Python 3.9) and starts the draft-phase timer here rather
+    than in on_ready, which can fire multiple times on reconnect and would spawn
+    duplicate timer loops."""
+    global draft_lock
+    if draft_lock is None:
+        draft_lock = asyncio.Lock()
     if not timer.is_running():
         timer.start()
 
