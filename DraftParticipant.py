@@ -142,7 +142,12 @@ class DraftParticipant:
         max_mons = self._league.get_max_mons()
         if len(self._pokemon) >= max_mons:
             return "You have already drafted {} Pokemon.".format(max_mons)
-        if self._points - cost < self._league.get_min_mons() - len(self._pokemon) or self._points - cost < 0:
+        # Reserve >=1 point for each roster slot still needed AFTER this pick to
+        # reach the minimum: with len mons now, drafting this one leaves
+        # min_mons - (len + 1) slots to fill, so keep that many points (not one
+        # more, which would force an extra mon and make the floor min_mons + 1).
+        if (self._points - cost < self._league.get_min_mons() - len(self._pokemon) - 1
+                or self._points - cost < 0):
             return "You do not have enough points to draft this Pokemon."
         if mon.is_mega():
             if self._mega:
