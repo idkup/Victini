@@ -270,8 +270,14 @@ class DraftLeague:
         self._phase = phase
 
     def set_pick_order(self):
-        """Sets the pick order for the draft."""
-        self._pickorder = 6 * (self._participants + self._participants[::-1])
+        """Sets the snake-draft pick order: one round per roster slot (get_max_mons),
+        alternating direction each round. Previously hardcoded to 12 rounds, which
+        ran an extra dead round whenever the max was below 12 (every pick in it hits
+        the roster cap and fails)."""
+        order = []
+        for rnd in range(self.get_max_mons()):
+            order += self._participants if rnd % 2 == 0 else self._participants[::-1]
+        self._pickorder = order
         self._picking = [0, datetime.datetime.now().replace(microsecond=0)]
 
     def set_replay_channel(self, channel: int):
