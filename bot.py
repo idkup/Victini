@@ -920,7 +920,7 @@ async def replay(ctx, replay_url):
             _save_leagues()
             w = league._participant_by_id(winner_id)
             lo = league._participant_by_id(loser_id)
-            scored = f"\n\n**Records:** {w.get_name()} ({w.get_record()}), {lo.get_name()} ({lo.get_record()})"
+            scored = f"\n\n||**Records:** {w.get_name()} ({w.get_record()}), {lo.get_name()} ({lo.get_record()})||"
         else:
             scored = "\n\n*(Result already recorded — not counted again.)*"
     else:
