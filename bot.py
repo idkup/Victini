@@ -500,8 +500,9 @@ async def debug_deaths(ctx, l_id, number, *args):
 
 
 @bot.command()
-async def debug_reset(ctx, l_id):
-    """Wipes the league. Admin command."""
+async def debug_wipe_league(ctx, l_id):
+    """Deletes the entire league from the database. Admin command. (Not to be
+    confused with !debug_reset_standings, which only clears records/stats.)"""
     if await require_admin(ctx):
         return
     league = league_by_id(l_id)
@@ -509,6 +510,23 @@ async def debug_reset(ctx, l_id):
         return await ctx.send("Invalid league ID.")
     leagues.remove(league)
     return await ctx.send("League removed from database.")
+
+
+@bot.command()
+async def debug_reset_standings(ctx, l_id):
+    """Clears all standings data for a league: W/L records, game differentials, the
+    result log and replay-dedup set, and every Pokemon's credited kills/deaths.
+    Rosters, schedule and bracket are kept. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    league.reset_standings()
+    _save_leagues()
+    return await ctx.send(
+        f"Standings cleared for league {l_id}: records, differentials, results, and "
+        f"all credited kills/deaths reset. Re-submit replays to re-tally.")
 
 
 @bot.command()
@@ -894,7 +912,11 @@ async def replay(ctx, replay_url):
     # Record the result into standings (schedule-unchecked, deduped by URL).
     scored = ""
     if winner_id is not None and loser_id is not None:
-        if league.record_result(winner_id, loser_id, replay_url):
+        # Game differential = winner's surviving mons - loser's (the "x-0" score).
+        # Attribution-independent, so opponent self-KOs still count for the winner.
+        game_diff = (sum(map(check_alive, parsed_battle.winner.team))
+                     - sum(map(check_alive, parsed_battle.loser.team)))
+        if league.record_result(winner_id, loser_id, replay_url, game_diff):
             _save_leagues()
             w = league._participant_by_id(winner_id)
             lo = league._participant_by_id(loser_id)
@@ -1223,7 +1245,7 @@ async def standings(ctx, l_id):
     ranked = league.standings()
     if not ranked:
         return await ctx.send("No participants yet.")
-    lines = [f"{i}. {p.get_name()} ({p.get_record()}) — kill diff {p.get_kill_diff():+d}"
+    lines = [f"{i}. {p.get_name()} ({p.get_record()}) — diff {p.get_diff():+d}"
              for i, p in enumerate(ranked, 1)]
     e = Embed(title=f"League {league.get_id()} — Standings")
     e.description = "\n".join(lines)

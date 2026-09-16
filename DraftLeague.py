@@ -270,8 +270,14 @@ class DraftLeague:
         self._phase = phase
 
     def set_pick_order(self):
-        """Sets the pick order for the draft."""
-        self._pickorder = 6 * (self._participants + self._participants[::-1])
+        """Sets the snake-draft pick order: one round per roster slot (get_max_mons),
+        alternating direction each round. Previously hardcoded to 12 rounds, which
+        ran an extra dead round whenever the max was below 12 (every pick in it hits
+        the roster cap and fails)."""
+        order = []
+        for rnd in range(self.get_max_mons()):
+            order += self._participants if rnd % 2 == 0 else self._participants[::-1]
+        self._pickorder = order
         self._picking = [0, datetime.datetime.now().replace(microsecond=0)]
 
     def set_replay_channel(self, channel: int):
@@ -299,8 +305,9 @@ class DraftLeague:
     def get_schedule(self):
         return self._schedule
 
-    def record_result(self, winner_id, loser_id, replay_url=None):
-        """Record a game result: bump W/L, log it (for head-to-head and replay
+    def record_result(self, winner_id, loser_id, replay_url=None, diff=0):
+        """Record a game result: bump W/L, apply the game differential `diff`
+        (winner's surviving mons minus loser's), log it (for head-to-head and replay
         links), and advance the playoff bracket if the pair is a live matchup.
         No-op on a repeat replay URL or a missing participant. Returns True if
         recorded."""
@@ -312,6 +319,8 @@ class DraftLeague:
             return False
         winner.add_win()
         loser.add_loss()
+        winner.add_diff(diff)
+        loser.add_diff(-diff)
         # store participant *objects* (not ids): identity survives a mid-season
         # !substitute, which mutates a participant's discord id/name in place.
         self._results.append((winner, loser, replay_url))
@@ -321,6 +330,18 @@ class DraftLeague:
             season.advance_bracket(self._bracket, winner_id, loser_id,
                                    lambda p: p.get_discord())
         return True
+
+    def reset_standings(self):
+        """Wipe all standings state: each participant's W/L record and game
+        differential, every Pokemon's credited kills/deaths, and the result log +
+        replay-dedup set (so results can be re-recorded). Roster, schedule and
+        bracket are left intact."""
+        for p in self._participants:
+            p.reset_record()
+        for m in self._tierlist:
+            m.reset_stats()
+        self._results = []
+        self._seen_replays = set()
 
     def get_results(self):
         return self._results

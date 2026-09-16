@@ -17,9 +17,10 @@ class _Mon:
 
 
 class _P:
-    def __init__(self, pid, wins=0, mons=()):
+    def __init__(self, pid, wins=0, diff=0, mons=()):
         self._id = pid
         self._wins = wins
+        self._diff = diff          # cumulative game differential (standings tiebreak)
         self._mons = list(mons)
 
     def get_discord(self):
@@ -55,17 +56,22 @@ class RoundRobin(unittest.TestCase):
 
 
 class Ranking(unittest.TestCase):
-    def test_wins_then_killdiff_then_h2h(self):
-        a = _P(1, wins=3, mons=[_Mon(10, 2)])   # +8
-        b = _P(2, wins=3, mons=[_Mon(5, 5)])     # 0
-        c = _P(3, wins=3, mons=[_Mon(10, 2)])    # +8, tied with a -> head-to-head
+    def test_wins_then_gamediff_then_h2h(self):
+        a = _P(1, wins=3, diff=8)
+        b = _P(2, wins=3, diff=0)
+        c = _P(3, wins=3, diff=8)                # tied with a on wins+diff -> head-to-head
         results = [(c, a, "url")]                # c beat a (participant objects)
         self.assertEqual([p.get_discord() for p in season.rank([a, b, c], results)], [3, 1, 2])
 
-    def test_wins_dominate_killdiff(self):
-        a = _P(1, wins=1, mons=[_Mon(0, 9)])     # -9 but more wins
-        b = _P(2, wins=0, mons=[_Mon(9, 0)])     # +9
+    def test_wins_dominate_gamediff(self):
+        a = _P(1, wins=1, diff=-9)               # worse diff but more wins
+        b = _P(2, wins=0, diff=9)
         self.assertEqual([p.get_discord() for p in season.rank([a, b], [])], [1, 2])
+
+    def test_game_diff_beats_kill_diff_on_self_kos(self):
+        # game_diff is attribution-independent: a shutout win with opponent self-KOs
+        # scores the full margin even though kill_diff would undercount it.
+        self.assertEqual(season.game_diff(_P(1, diff=4)), 4)
 
 
 class Bracket(unittest.TestCase):

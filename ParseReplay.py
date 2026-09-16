@@ -41,6 +41,12 @@ _SELF_SOURCES = {
 _DAMAGING_STATUS = {"psn", "tox", "brn"}
 _DAMAGING_WEATHER = {"Sandstorm", "Hail"}
 _HAZARDS = {"Stealth Rock", "Spikes", "Toxic Spikes"}
+# Partial-trapping moves: residual end-of-turn damage tagged '[from] move: <name>'
+# with no '[of]', so the trapper must be tracked from the '-activate' that starts it.
+_TRAP_MOVES = {
+    "Infestation", "Bind", "Wrap", "Fire Spin", "Clamp", "Whirlpool",
+    "Sand Tomb", "Magma Storm", "Snap Trap", "Thunder Cage",
+}
 
 
 def _parse_ident(token):
@@ -85,6 +91,7 @@ def parse_battle(log):
 
     status_source = {}                       # victim mon -> source mon
     seed_source = {}                         # victim mon -> source mon
+    trap_source = {}                         # victim mon -> partial-trap setter
     hazard_setter = {"p1": {}, "p2": {}}     # side hazards sit ON -> {hazard: setter}
     weather_source = None                    # mon that set the current damaging weather
     last_move = None                         # (side, attacker mon)
@@ -219,6 +226,17 @@ def parse_battle(log):
                 if src is not None:
                     seed_source[victim] = src
 
+        elif kind == "-activate" and len(parts) > 3 and parts[3].strip().startswith("move: ") \
+                and parts[3].strip()[len("move: "):] in _TRAP_MOVES:
+            # A partial-trap begins (e.g. '-activate|VICTIM|move: Infestation|[of] USER').
+            # This line carries the trapper via [of]; the later residual faint does not.
+            side, victim = resolve(parts[2])
+            if victim is not None:
+                of_tok = _tag(parts, "[of] ")
+                src = resolve(of_tok)[1] if of_tok else (last_move[1] if last_move else None)
+                if src is not None:
+                    trap_source[victim] = src
+
         elif kind == "-damage" and len(parts) > 3 and _is_faint_hp(parts[3]):
             side, victim = resolve(parts[2])
             if victim is None or victim.ko:
@@ -241,6 +259,8 @@ def parse_battle(log):
                 source = of_mon or weather_source
             elif from_txt == "Leech Seed":
                 source = of_mon or seed_source.get(victim)
+            elif from_txt.startswith("move: ") and from_txt[len("move: "):] in _TRAP_MOVES:
+                source = of_mon or trap_source.get(victim)   # Infestation & other partial traps
             elif from_txt in _HAZARDS:
                 source = of_mon or hazard_setter[side].get(from_txt)
             else:                                          # ability chip, etc.
