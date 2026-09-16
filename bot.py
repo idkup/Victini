@@ -753,8 +753,10 @@ async def kills(ctx, l_id):
     if league is None:
         return await ctx.send("Invalid league ID.")
     msg = f"**Kill Leaderboard (League {l_id}):**\n"
-    league.get_all_pokemon().sort(key=lambda x: x.get_kills(), reverse=True)
-    top_20 = league.get_all_pokemon()[:20]
+    # kills desc, then fewest deaths, then alphabetical (doesn't reorder the tierlist)
+    ranked = sorted(league.get_all_pokemon(),
+                    key=lambda x: (-x.get_kills(), x.get_deaths(), str(x).lower()))
+    top_20 = ranked[:20]
     i = 1
     for p in top_20:
         if p.get_owner():
