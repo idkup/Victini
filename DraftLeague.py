@@ -331,6 +331,18 @@ class DraftLeague:
                                    lambda p: p.get_discord())
         return True
 
+    def reset_standings(self):
+        """Wipe all standings state: each participant's W/L record and game
+        differential, every Pokemon's credited kills/deaths, and the result log +
+        replay-dedup set (so results can be re-recorded). Roster, schedule and
+        bracket are left intact."""
+        for p in self._participants:
+            p.reset_record()
+        for m in self._tierlist:
+            m.reset_stats()
+        self._results = []
+        self._seen_replays = set()
+
     def get_results(self):
         return self._results
 

@@ -57,6 +57,12 @@ class DraftParticipant:
     def add_loss(self):
         self._losses = self.get_losses() + 1
 
+    def reset_record(self):
+        """Clear season W/L record and game differential (standings reset)."""
+        self._wins = 0
+        self._losses = 0
+        self._diff = 0
+
     def get_record(self) -> str:
         """W-L record as 'wins-losses'."""
         return "{}-{}".format(self.get_wins(), self.get_losses())

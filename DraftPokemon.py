@@ -32,6 +32,11 @@ class DraftPokemon:
         """Adds k to self._kills."""
         self._kills += k
 
+    def reset_stats(self):
+        """Clear credited kills and deaths (standings reset)."""
+        self._kills = 0
+        self._deaths = 0
+
     def get_deaths(self) -> int:
         """Returns self._deaths."""
         return self._deaths

@@ -500,8 +500,9 @@ async def debug_deaths(ctx, l_id, number, *args):
 
 
 @bot.command()
-async def debug_reset(ctx, l_id):
-    """Wipes the league. Admin command."""
+async def debug_wipe_league(ctx, l_id):
+    """Deletes the entire league from the database. Admin command. (Not to be
+    confused with !debug_reset_standings, which only clears records/stats.)"""
     if await require_admin(ctx):
         return
     league = league_by_id(l_id)
@@ -509,6 +510,23 @@ async def debug_reset(ctx, l_id):
         return await ctx.send("Invalid league ID.")
     leagues.remove(league)
     return await ctx.send("League removed from database.")
+
+
+@bot.command()
+async def debug_reset_standings(ctx, l_id):
+    """Clears all standings data for a league: W/L records, game differentials, the
+    result log and replay-dedup set, and every Pokemon's credited kills/deaths.
+    Rosters, schedule and bracket are kept. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    league.reset_standings()
+    _save_leagues()
+    return await ctx.send(
+        f"Standings cleared for league {l_id}: records, differentials, results, and "
+        f"all credited kills/deaths reset. Re-submit replays to re-tally.")
 
 
 @bot.command()
