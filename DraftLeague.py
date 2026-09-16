@@ -305,8 +305,9 @@ class DraftLeague:
     def get_schedule(self):
         return self._schedule
 
-    def record_result(self, winner_id, loser_id, replay_url=None):
-        """Record a game result: bump W/L, log it (for head-to-head and replay
+    def record_result(self, winner_id, loser_id, replay_url=None, diff=0):
+        """Record a game result: bump W/L, apply the game differential `diff`
+        (winner's surviving mons minus loser's), log it (for head-to-head and replay
         links), and advance the playoff bracket if the pair is a live matchup.
         No-op on a repeat replay URL or a missing participant. Returns True if
         recorded."""
@@ -318,6 +319,8 @@ class DraftLeague:
             return False
         winner.add_win()
         loser.add_loss()
+        winner.add_diff(diff)
+        loser.add_diff(-diff)
         # store participant *objects* (not ids): identity survives a mid-season
         # !substitute, which mutates a participant's discord id/name in place.
         self._results.append((winner, loser, replay_url))

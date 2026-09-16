@@ -19,6 +19,7 @@ class DraftParticipant:
         self._block_index = None         # index into sheet.BLOCK_INPUT_COLS (set at shuffle)
         self._wins = 0                   # season record
         self._losses = 0
+        self._diff = 0                   # cumulative game differential (surviving mons)
 
     def __setstate__(self, state):
         """Restore from pickle, filling defaults for attributes added in later
@@ -31,6 +32,7 @@ class DraftParticipant:
             "_block_index": None,
             "_wins": 0,
             "_losses": 0,
+            "_diff": 0,
         })
         self.__dict__.update(state)
 
@@ -62,6 +64,16 @@ class DraftParticipant:
     def get_kill_diff(self) -> int:
         """Total (kills - deaths) across this participant's Pokemon."""
         return sum(m.get_kills() - m.get_deaths() for m in self._pokemon)
+
+    def get_diff(self) -> int:
+        """Cumulative game differential: sum over games of (own surviving mons -
+        opponent surviving mons). Unlike kill differential this doesn't depend on
+        KO attribution, so opponent self-KOs (e.g. Explosion, Life Orb) still count
+        toward the winning side. Getattr-safe for participants that predate it."""
+        return getattr(self, "_diff", 0)
+
+    def add_diff(self, n: int):
+        self._diff = self.get_diff() + n
 
     def add_showdown(self, s_id: str):
         """Adds a Showdown ID to a participant."""

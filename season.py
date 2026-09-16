@@ -35,22 +35,30 @@ def kill_diff(participant):
     return sum(m.get_kills() - m.get_deaths() for m in participant.get_pokemon())
 
 
+def game_diff(participant):
+    """Cumulative game differential (own surviving mons - opponent's), summed over
+    games. Independent of KO attribution, so opponent self-KOs still count."""
+    return getattr(participant, "_diff", 0)
+
+
 def rank(participants, results):
-    """Order participants by (wins desc, kill_diff desc), breaking any group still
-    tied on both by head-to-head wins within that group. `results` is a list of
-    (winner, loser, ...) tuples of participant objects (matched by identity, so
+    """Order participants by (wins desc, game differential desc), breaking any group
+    still tied on both by head-to-head wins within that group. Game differential is
+    the surviving-mon score (see game_diff), not kill differential, so a win by
+    forfeit or opponent self-KO is scored by the actual margin. `results` is a list
+    of (winner, loser, ...) tuples of participant objects (matched by identity, so
     ranking survives a mid-season !substitute)."""
     def wins(p):
         return getattr(p, "_wins", 0)
 
-    base = sorted(participants, key=lambda p: (wins(p), kill_diff(p)), reverse=True)
+    base = sorted(participants, key=lambda p: (wins(p), game_diff(p)), reverse=True)
     ordered = []
     i = 0
     while i < len(base):
         j = i
         while (j < len(base)
                and wins(base[j]) == wins(base[i])
-               and kill_diff(base[j]) == kill_diff(base[i])):
+               and game_diff(base[j]) == game_diff(base[i])):
             j += 1
         group = base[i:j]
         if len(group) > 1:

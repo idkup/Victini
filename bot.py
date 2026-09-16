@@ -894,7 +894,11 @@ async def replay(ctx, replay_url):
     # Record the result into standings (schedule-unchecked, deduped by URL).
     scored = ""
     if winner_id is not None and loser_id is not None:
-        if league.record_result(winner_id, loser_id, replay_url):
+        # Game differential = winner's surviving mons - loser's (the "x-0" score).
+        # Attribution-independent, so opponent self-KOs still count for the winner.
+        game_diff = (sum(map(check_alive, parsed_battle.winner.team))
+                     - sum(map(check_alive, parsed_battle.loser.team)))
+        if league.record_result(winner_id, loser_id, replay_url, game_diff):
             _save_leagues()
             w = league._participant_by_id(winner_id)
             lo = league._participant_by_id(loser_id)
@@ -1223,7 +1227,7 @@ async def standings(ctx, l_id):
     ranked = league.standings()
     if not ranked:
         return await ctx.send("No participants yet.")
-    lines = [f"{i}. {p.get_name()} ({p.get_record()}) — kill diff {p.get_kill_diff():+d}"
+    lines = [f"{i}. {p.get_name()} ({p.get_record()}) — diff {p.get_diff():+d}"
              for i, p in enumerate(ranked, 1)]
     e = Embed(title=f"League {league.get_id()} — Standings")
     e.description = "\n".join(lines)
