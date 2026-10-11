@@ -864,80 +864,175 @@ async def release(ctx, *args):
     await push_block(ctx, league, player)
 
 
-@bot.command()
-async def replay(ctx, replay_url):
-    """Uploads a replay to be parsed."""
+def _replay_league(channel_id):
+    """The league whose replay channel is channel_id, or None."""
     for l in leagues:
-        try:
-            if ctx.channel.id == l.get_replay_channel():
-                league = l
-                break
-        except AttributeError:
-            pass
-    else:
-        return await ctx.send("This is not a replay channel.")
-    if league.get_phase() < 2:
-        return await ctx.send("This league is still in the drafting phase!")
-    parsed_battle = parse_replay(replay_url)
-    if parsed_battle.winner is None:
-        return await ctx.send("Could not determine a winner from that replay.")
-    check_alive = lambda x: not x.ko
-    winner_id = None
-    loser_id = None
-    for participant in l.get_participants():
-        matches = 0
-        match_list = []
-        for p in participant.get_pokemon():
-            for q in parsed_battle.winner.team:
-                if (str(p) in q.species or q.species in str(p)) and not(str(p) != q.species == "Porygon") or (str(p) == q.species == "Porygon"):
-                    matches += 1
-                    match_list.append((p, q))
-                    break
-            if matches == 6:
-                for m in match_list:
-                    m[0].add_kills(m[1].direct_kills + m[1].indirect_kills)
-                    m[0].add_deaths(m[1].ko)
-                winner_id = participant.get_discord()
-                break
-            for q in parsed_battle.loser.team:
-                if (str(p) in q.species or q.species in str(p)) and not(str(p) != q.species == "Porygon") or (str(p) == q.species == "Porygon"):
-                    matches += 1
-                    match_list.append((p, q))
-                    break
-            if matches == 6:
-                for m in match_list:
-                    m[0].add_kills(m[1].direct_kills + m[1].indirect_kills)
-                    m[0].add_deaths(m[1].ko)
-                loser_id = participant.get_discord()
-                break
+        if getattr(l, "_replay_channel", None) == channel_id:
+            return l
+    return None
 
-    # Record the result into standings (schedule-unchecked, deduped by URL).
-    scored = ""
-    if winner_id is not None and loser_id is not None:
+
+async def _score_replay(ctx, league, replay_url, parsed_battle, winner, loser,
+                        winner_pairs, loser_pairs):
+    """Record a parsed replay for already-identified participants (either may be
+    None if unidentified) and send the result message. Kills/deaths are credited
+    only when the result is actually recorded, so a duplicate or unscoreable
+    replay never double-counts them on re-submission."""
+    alive = lambda team: sum(not m.ko for m in team)
+    w_alive, l_alive = alive(parsed_battle.winner.team), alive(parsed_battle.loser.team)
+    if winner is not None and loser is not None and league.is_replay_recorded(replay_url):
+        scored = "\n\n*(Result already recorded — not counted again.)*"
+    elif winner is not None and loser is not None and not league.has_unplayed_game(winner, loser):
+        scored = (f"\n\n*(Not counted: {winner.get_name()} and {loser.get_name()} have no "
+                  f"unplayed game on the schedule or bracket.)*")
+    elif winner is not None and loser is not None:
         # Game differential = winner's surviving mons - loser's (the "x-0" score).
         # Attribution-independent, so opponent self-KOs still count for the winner.
-        game_diff = (sum(map(check_alive, parsed_battle.winner.team))
-                     - sum(map(check_alive, parsed_battle.loser.team)))
-        if league.record_result(winner_id, loser_id, replay_url, game_diff):
+        if league.record_result(winner.get_discord(), loser.get_discord(), replay_url,
+                                w_alive - l_alive):
+            league.credit_kills(winner_pairs)
+            league.credit_kills(loser_pairs)
             _save_leagues()
-            w = league._participant_by_id(winner_id)
-            lo = league._participant_by_id(loser_id)
-            scored = f"\n\n||**Records:** {w.get_name()} ({w.get_record()}), {lo.get_name()} ({lo.get_record()})||"
+            scored = (f"\n\n||**Records:** {winner.get_name()} ({winner.get_record()}), "
+                      f"{loser.get_name()} ({loser.get_record()})||")
         else:
             scored = "\n\n*(Result already recorded — not counted again.)*"
     else:
-        scored = "\n\n*(Could not score: a team did not match a league participant.)*"
+        scored = ("\n\n*(Could not score: a team did not match a league participant. "
+                  "An admin can use `!replay_as <url> <winner> <loser>`.)*")
 
+    w_id = winner.get_discord() if winner is not None else None
+    l_id = loser.get_discord() if loser is not None else None
     winner_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.winner.team)
     loser_team_stats = "\n".join(f"`{p}`" for p in parsed_battle.loser.team)
-    return await ctx.send(f"""Result: ||**<@{winner_id}>** won against **<@{loser_id}>** {
-    sum(map(check_alive, parsed_battle.winner.team))} - {sum(map(check_alive, parsed_battle.loser.team))}||
+    return await ctx.send(f"""Result: ||**<@{w_id}>** won against **<@{l_id}>** {w_alive} - {l_alive}||
 
 ||**{parsed_battle.winner.psname}**:
 {winner_team_stats}||
 
 ||**{parsed_battle.loser.psname}**:
 {loser_team_stats}||{scored}""")
+
+
+@bot.command()
+async def replay(ctx, replay_url):
+    """Uploads a replay to be parsed. Each side is identified as the participant
+    whose current roster covers its whole team."""
+    league = _replay_league(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a replay channel.")
+    if league.get_phase() < 2:
+        return await ctx.send("This league is still in the drafting phase!")
+    parsed_battle = parse_replay(replay_url)
+    if parsed_battle.winner is None:
+        return await ctx.send("Could not determine a winner from that replay.")
+    winner, winner_pairs = league.identify_team(parsed_battle.winner.team)
+    loser, loser_pairs = league.identify_team(parsed_battle.loser.team)
+    return await _score_replay(ctx, league, replay_url, parsed_battle,
+                               winner, loser, winner_pairs, loser_pairs)
+
+
+@bot.command()
+async def replay_as(ctx, replay_url, winner_name, loser_name):
+    """!replay_as <url> <winner> <loser> -- score a replay with the players named
+    explicitly (mention, Discord id, or name) instead of matched by roster, for when
+    a team changed mid-week and no longer matches the replay. Kills go to the named
+    player's roster mon of that species, else to that league Pokemon wherever it is
+    now. Use in the replay channel. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = _replay_league(ctx.channel.id)
+    if league is None:
+        return await ctx.send("This is not a replay channel.")
+    if league.get_phase() < 2:
+        return await ctx.send("This league is still in the drafting phase!")
+    winner = league.find_participant(winner_name)
+    loser = league.find_participant(loser_name)
+    for token, p in ((winner_name, winner), (loser_name, loser)):
+        if p is None:
+            return await ctx.send(f"{token} is not a participant in league {league.get_id()}.")
+    if winner is loser:
+        return await ctx.send("Winner and loser must be different participants.")
+    parsed_battle = parse_replay(replay_url)
+    if parsed_battle.winner is None:
+        return await ctx.send("Could not determine a winner from that replay.")
+    winner_pairs = league.match_for_participant(winner, parsed_battle.winner.team)
+    loser_pairs = league.match_for_participant(loser, parsed_battle.loser.team)
+    unmatched = [q.species for side, pairs in ((parsed_battle.winner, winner_pairs),
+                                               (parsed_battle.loser, loser_pairs))
+                 for q in side.team if all(q is not b for _, b in pairs)]
+    if unmatched:
+        await ctx.send("No league Pokemon matched (kills not credited): "
+                       + ", ".join(unmatched))
+    return await _score_replay(ctx, league, replay_url, parsed_battle,
+                               winner, loser, winner_pairs, loser_pairs)
+
+
+@bot.command()
+async def forfeit(ctx, l_id, winner_name, loser_name, diff="6"):
+    """!forfeit <league_id> <winner> <loser> [diff] -- record a win by forfeit with no
+    replay (e.g. a no-show): bumps W/L, applies the game differential (default 6,
+    i.e. a 6-0), and advances a live bracket matchup. Players are a mention, Discord
+    id, or name. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    try:
+        diff = int(diff)
+    except ValueError:
+        return await ctx.send("Differential must be an integer (e.g. 6).")
+    winner = league.find_participant(winner_name)
+    loser = league.find_participant(loser_name)
+    for token, p in ((winner_name, winner), (loser_name, loser)):
+        if p is None:
+            return await ctx.send(f"{token} is not a participant in league {l_id}.")
+    if winner is loser:
+        return await ctx.send("Winner and loser must be different participants.")
+    if not league.has_unplayed_game(winner, loser):
+        return await ctx.send(
+            f"{winner.get_name()} and {loser.get_name()} have no unplayed game on the "
+            f"schedule or bracket (not scheduled, or already recorded).")
+    league.record_result(winner.get_discord(), loser.get_discord(), None, diff)
+    _save_leagues()
+    return await ctx.send(
+        f"Forfeit recorded: **{winner.get_name()}** def. {loser.get_name()} ({diff:+d}). "
+        f"Records: {winner.get_name()} ({winner.get_record()}), "
+        f"{loser.get_name()} ({loser.get_record()}).")
+
+
+@bot.command()
+async def adjust_diff(ctx, l_id, player, amount, opponent=None):
+    """!adjust_diff <league_id> <player> <amount> [opponent] -- add `amount` (may be
+    negative) to a player's game differential, e.g. to score a forfeit. With an
+    opponent, subtract the same amount from them so the pair stays zero-sum.
+    Players are a mention, Discord id, or name. Admin command."""
+    if await require_admin(ctx):
+        return
+    league = league_by_id(l_id)
+    if league is None:
+        return await ctx.send("Invalid league ID.")
+    try:
+        amount = int(amount)
+    except ValueError:
+        return await ctx.send("Amount must be an integer (e.g. 3 or -2).")
+    p = league.find_participant(player)
+    if p is None:
+        return await ctx.send(f"{player} is not a participant in league {l_id}.")
+    opp = None
+    if opponent is not None:
+        opp = league.find_participant(opponent)
+        if opp is None:
+            return await ctx.send(f"{opponent} is not a participant in league {l_id}.")
+        if opp is p:
+            return await ctx.send("Player and opponent must be different participants.")
+    league.adjust_diff(p, amount, opp)
+    _save_leagues()
+    msg = f"{p.get_name()}'s differential adjusted by {amount:+d} (now {p.get_diff():+d})"
+    if opp is not None:
+        msg += f"; {opp.get_name()}'s by {-amount:+d} (now {opp.get_diff():+d})"
+    return await ctx.send(msg + ".")
 
 
 @bot.command()
