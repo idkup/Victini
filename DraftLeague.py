@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import random
+import re
 import season
 from typing import Union
 
@@ -297,6 +298,72 @@ class DraftLeague:
                 return p
         return None
 
+    def find_participant(self, token):
+        """Resolve a participant from a Discord mention (<@id>), a raw Discord id,
+        or a name (case-insensitive). Returns None if nothing matches."""
+        m = re.fullmatch(r"<@!?(\d+)>|(\d+)", str(token).strip())
+        if m:
+            p = self._participant_by_id(int(m.group(1) or m.group(2)))
+            if p is not None:
+                return p
+        return self.get_user(str(token)) or None
+
+    @staticmethod
+    def species_matches(drafted, species) -> bool:
+        """Whether a drafted Pokemon's name matches a replay species (substring
+        either way, so formes line up; plain Porygon must match exactly)."""
+        d = str(drafted)
+        return ((d in species or species in d) and not (d != species == "Porygon")) \
+            or (d == species == "Porygon")
+
+    @classmethod
+    def match_mons(cls, pool, battle_team) -> list:
+        """Pair each replay mon with a distinct drafted mon from `pool` (an exact name
+        match wins over a substring one; earlier pool entries win ties). Returns
+        (drafted, battle_mon) pairs; replay mons with no match are omitted."""
+        pairs, used = [], set()
+        for q in battle_team:
+            free = [p for p in pool if id(p) not in used]
+            hit = (next((p for p in free if str(p) == q.species), None)
+                   or next((p for p in free if cls.species_matches(p, q.species)), None))
+            if hit is not None:
+                used.add(id(hit))
+                pairs.append((hit, q))
+        return pairs
+
+    def identify_team(self, battle_team):
+        """The participant whose current roster covers every mon in `battle_team`,
+        with the (drafted, battle_mon) pairs. (None, []) if no roster does."""
+        for participant in self._participants:
+            pairs = self.match_mons(participant.get_pokemon(), battle_team)
+            if battle_team and len(pairs) == len(battle_team):
+                return participant, pairs
+        return None, []
+
+    def match_for_participant(self, participant, battle_team) -> list:
+        """(drafted, battle_mon) pairs for a team the caller has already attributed
+        to `participant`, e.g. after a mid-week roster change: prefers the player's
+        current roster, then falls back to any league Pokemon (a mon traded or
+        released after the game still gets its kills)."""
+        roster = participant.get_pokemon()
+        rest = [m for m in self._tierlist if m not in roster]
+        return self.match_mons(list(roster) + rest, battle_team)
+
+    @staticmethod
+    def credit_kills(pairs):
+        """Credit each drafted mon with its replay kills and death."""
+        for drafted, battle_mon in pairs:
+            drafted.add_kills(battle_mon.kills)
+            drafted.add_deaths(int(battle_mon.ko))
+
+    def adjust_diff(self, participant, amount: int, opponent=None):
+        """Manually add `amount` to a participant's game differential (e.g. to score
+        a forfeit). With `opponent`, subtract it from them too, keeping the pair's
+        differentials zero-sum like a recorded game does."""
+        participant.add_diff(amount)
+        if opponent is not None:
+            opponent.add_diff(-amount)
+
     def generate_schedule(self, weeks=8):
         """Build the round-robin regular-season schedule."""
         self._schedule = season.round_robin(self._participants, weeks)
@@ -330,6 +397,22 @@ class DraftLeague:
             season.advance_bracket(self._bracket, winner_id, loser_id,
                                    lambda p: p.get_discord())
         return True
+
+    def is_replay_recorded(self, replay_url) -> bool:
+        """Whether this replay URL has already been counted."""
+        return replay_url in self._seen_replays
+
+    def has_unplayed_game(self, a, b) -> bool:
+        """Whether a and b have a scheduled game with no result yet: their meetings
+        (regular-season pairings plus playoff matchups) outnumber the results
+        already recorded between them. Matched by identity (substitute-safe)."""
+        pair = {a, b}
+        meetings = sum(1 for week in (self._schedule or []) for x, y in week
+                       if {x, y} == pair)
+        meetings += sum(1 for rnd in (self._bracket or []) for m in rnd
+                        if {m[0], m[1]} == pair)
+        played = sum(1 for r in self._results if {r[0], r[1]} == pair)
+        return meetings > played
 
     def reset_standings(self):
         """Wipe all standings state: each participant's W/L record and game
